@@ -1,92 +1,48 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MQTT Example</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
-  <script>
-    function init() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const topic = urlParams.get('topic') || 'testTopic';
-      const mqttServer = urlParams.get('mqttServer') || 'wss://test.mosquitto.org:8081';
-      const clientId = 'mqttClient_' + Math.random().toString(16).substr(2, 8);
-
-      const client = new Paho.MQTT.Client(mqttServer, clientId);
-      client.onConnectionLost = onConnectionLost;
-      client.onMessageArrived = onMessageArrived;
-      client.connect({ onSuccess: onConnect });
-
-      function onConnect() {
-        console.log('Connected');
-        client.subscribe(topic);
-      }
-
-      function onConnectionLost(responseObject) {
-        if (responseObject.errorCode !== 0) {
-          console.log('Connection lost: ' + responseObject.errorMessage);
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WECIoT - ESP 應用開發</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
         }
-      }
 
-      function onMessageArrived(message) {
-        const responseBox = document.getElementById('responseBox');
-        responseBox.value += message.payloadString + '\n';
-      }
-
-      function sendMessage(text) {
-        const message = new Paho.MQTT.Message(text);
-        message.destinationName = topic;
-        client.send(message);
-      }
-
-      document.getElementById('sendButton').addEventListener('click', () => {
-        const inputBox = document.getElementById('inputBox');
-        sendMessage(inputBox.value);
-      });
-      document.getElementById('button1').addEventListener('click', () => { sendMessage('capture'); });
-    }
-  </script>
+        .section {
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
-<body onload="init()">
-  <div class="container">
-    <div class="row mt-5">
-      <div class="col">
-        <input type="text" id="inputBox" class="form-control" placeholder="輸入訊息">
-      </div>
-      <div class="col-auto">
-        <button type="button" id="sendButton" class="btn btn-primary">發送訊息</button>
-      </div>
-    </div>
-    <div class="row mt-3">
-      <div class="col">
-        <textarea id="responseBox" class="form-control" rows="10" readonly></textarea>
-      </div>
-    </div>
-    <div class="row mt-3">
-      <div class="col-auto">
-        <button type="button" id="button1" class="btn btn-secondary">影像傳送</button>
-      </div>
-      <div class="col-auto">
-        <button type="button" class="btn btn-secondary">命令2</button>
-      </div>
-    </div>
-    <div class="row mt-3">
-      <div class="col-auto">
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" id="switch1">
-          <label class="form-check-label" for="switch1">開關1</label>
-        </div>
-      </div>
-      <div class="col-auto">
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" id="switch2">
-          <label class="form-check-label" for="switch2">開關2</label>
-        </div>
-      </div>
-    </div>
-  </div>
+
+<body>
+    <header>
+        <h1>WECIoT - ESP 應用開發</h1>
+    </header>
+
+    <main>
+        <section class="section">
+            <h2>引言</h2>
+            <p>在這個科技日新月異的時代，物聯網 (IoT) 正在改變我們的生活方式和工作模式。WECIoT 是一個致力於開發創新 ESP 相關應用的專業團隊。我們的目標是通過提供高效、可靠和易用的解決方案，幫助客戶實現他們的 IoT 項目。</p>
+        </section>
+
+        <section class="section">
+            <h2>專案亮點 - ESP32-CAM</h2>
+            <p>目前，WECIoT 正在進行一個令人興奮的 ESP32-CAM 專案。這個專案利用 MQTT 協議、LINE 通訊平台和攝像頭模組，實現了實時影像獲取和傳輸的功能。</p>
+            <h3>主要特點：</h3>
+            <ul>
+                <li>實時影像獲取: 利用 ESP32-CAM，我們的系統能夠實時捕捉和傳輸高清影像。</li>
+                <li>MQTT 協議: 通過 MQTT 協議，確保了影像數據的穩定和高效傳輸。</li>
+                <li>LINE 整合: 用戶可以直接通過 LINE 平台，隨時隨地獲取實時影像，方便快捷。</li>
+                <li>靈活應用: 適用於各種場景，如家庭安全監控、企業監控、寵物監控等。</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer>
+        <p>WECIoT - 連接世界，創建未來！</p>
+    </footer>
 </body>
+
 </html>
