@@ -28,6 +28,7 @@
 
 
 ## 功能命令
+
 - **capture** 獲取當前影像
 - **reboot** 重啟設備
 - **reset_wifi** 重設WIFI配置
