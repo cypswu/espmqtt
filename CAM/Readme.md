@@ -28,13 +28,13 @@
 
 
 ## 功能命令
-**capture** 獲取當前影像
-**reboot** 重啟設備
-**reset_wifi** 重設WIFI配置
-**update** 更新韌體
-**led on/off/?/pin_4** 補光燈開啟、關閉、狀態、PIN腳
-**img qvga/vga/svga/xga/sxga/uxga** 改變相機解析度
-**sd on** 啟動SD卡模組保存
+- **capture** 獲取當前影像
+- **reboot** 重啟設備
+- **reset_wifi** 重設WIFI配置
+- **update** 更新韌體
+- **led on/off/?/pin_4** 補光燈開啟、關閉、狀態、PIN腳
+- **img qvga/vga/svga/xga/sxga/uxga** 改變相機解析度
+- **sd on** 啟動SD卡模組保存
 
 
 ## 常見問題解答
