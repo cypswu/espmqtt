@@ -26,6 +26,9 @@
 4. **查看實時影像**
    - 點擊收到的通知中的連結，即可查看您攝像頭的實時影像。
 
+5. **韌體配置**
+   - ![Arduino 工具配置]([https://example.com/image.jpg](https://github.com/cypswu/espmqtt/blob/9789777028daab91ba55f656df10117f059bf9ff/CAM/Arduino%E9%96%8B%E7%99%BC%E7%89%88%E8%A8%AD%E7%BD%AE.png))
+
 
 ## 功能命令
 
