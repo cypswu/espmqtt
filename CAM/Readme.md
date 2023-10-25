@@ -42,7 +42,7 @@
 - **mode grayscale/color** 更改灰度或彩色相機(目前不支援灰度)
 - **mode image/stream/stop** 開啟圖流網頁或串流網頁或關閉串流
 - **sd on** 啟動SD卡模組保存
-
+- **初始功能** WiFi或MQTT超過10分鐘無法連線，或AP配置超過6分鐘無法連線就重啟設備
 
 ## 常見問題解答
 
