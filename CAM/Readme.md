@@ -32,17 +32,17 @@
 
 ## 功能與命令
 
+- **初始功能** WiFi或MQTT超過10分鐘無法連線，或AP配置超過6分鐘無法連線就重啟設備。
 - **GPIO13按鈕** 在開機時，按下超過3秒進入AP模式，超過10秒清除所有設置。
-- **capture** 獲取當前影像
-- **reboot** 重啟設備，Serial命令可支援
-- **reset_wifi** 重設WIFI配置，Serial命令可支援
-- **update** 更新韌體
-- **led on/off/?/pin_4** 補光燈開啟、關閉、狀態、PIN腳
-- **img qvga/vga/svga/xga/sxga/uxga** 改變相機解析度
-- **mode grayscale/color** 更改灰度或彩色相機(目前不支援灰度)
-- **mode image/stream/stop** 開啟圖流網頁或串流網頁或關閉串流
-- **sd on** 啟動SD卡模組保存
-- **初始功能** WiFi或MQTT超過10分鐘無法連線，或AP配置超過6分鐘無法連線就重啟設備
+- **reboot** 重啟設備，Serial命令可支援。
+- **reset_wifi** 重設WIFI配置，Serial命令可支援。
+- **update** 更新韌體。
+- **capture** 獲取當前影像。
+- **led on/off/?/pin_4** 補光燈開啟、關閉、狀態、PIN腳。
+- **img qvga/(vga)/svga/xga/sxga/uxga** 改變相機解析度。
+- **mode grayscale/(color)** 更改灰度或彩色相機(目前不支援灰度)。
+- **mode image/stream/stop** 開啟圖流網頁或串流網頁或關閉串流。
+- **sd on** 啟動SD卡模組保存，預設不啟動SD卡儲存。
 
 ## 常見問題解答
 
