@@ -34,8 +34,8 @@
 
 - **GPIO13按鈕** 在開機時，按下超過3秒進入AP模式，超過10秒清除所有設置。
 - **capture** 獲取當前影像
-- **reboot** 重啟設備
-- **reset_wifi** 重設WIFI配置
+- **reboot** 重啟設備，Serial命令可支援
+- **reset_wifi** 重設WIFI配置，Serial命令可支援
 - **update** 更新韌體
 - **led on/off/?/pin_4** 補光燈開啟、關閉、狀態、PIN腳
 - **img qvga/vga/svga/xga/sxga/uxga** 改變相機解析度
