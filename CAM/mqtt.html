@@ -1,8 +1,10 @@
 <!DOCTYPE html>
+
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="icon" href="favicon.ico" />
   <title>EWC 32CAM MQTT Control</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
@@ -62,12 +64,42 @@
 					sendMqttMessage('mode stop');
 				}
 			});
+			document.getElementById('resolutionSelector').addEventListener('change', function() {
+				const selectedResolution = this.value;
+				switch (selectedResolution) {
+					case "uxga":
+						sendMqttMessage('img uxga');
+            break;
+					case "sxga":
+						sendMqttMessage('img sxga');
+            break;
+					case "xga":
+            sendMqttMessage('img xga');
+            break;
+					case "svga":
+            sendMqttMessage('img svga');
+            break;
+					case "vga":
+            sendMqttMessage('img vga');
+            break;
+					case "qvga":
+            sendMqttMessage('img qvga');
+            break;
+					default:
+            break;
+				}
+			});
 
 		}
   </script>
 </head>
 <body onload="init()">
-  <div class="container">
+	<div class="text-center mt-5 border rounded p-3 shadow-lg">
+		<h1 class="display-4 text-dark font-weight-bold border-bottom pb-2">
+        EWC32-CAM控制中心
+    </h1>
+	</div>
+	<div class="container">
     <div class="row mt-5">
       <div class="col">
         <input type="text" id="inputBox" class="form-control" placeholder="輸入訊息">
@@ -101,6 +133,19 @@
           <input class="form-check-input" type="checkbox" id="switchStream">
           <label class="form-check-label" for="switchStream">串流開關</label>
         </div>
+      </div>
+    </div>
+    <div class="row mt-3">
+      <div class="col-auto">
+				<select id="resolutionSelector" class="form-select form-select-lg mb-3" style="font-size: 1rem;">
+					<option value="" selected>請選擇解析度...(VGA)</option>
+					<option value="uxga">UXGA (1600x1200)</option>
+					<option value="sxga">SXGA (1280x1024)</option>
+					<option value="xga">XGA (1024x768)</option>
+					<option value="svga">SVGA (800x600)</option>
+					<option value="vga">VGA (640x480)</option>
+					<option value="qvga">QVGA (320x240)</option>
+				</select>
       </div>
     </div>
   </div>
