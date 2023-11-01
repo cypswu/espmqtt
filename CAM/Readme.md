@@ -41,7 +41,7 @@
 - **led on/off/?/pin_4** 補光燈開啟、關閉、狀態、PIN腳，使用前須先定義腳位。
 - **img qvga/(vga)/svga/xga/sxga/uxga** 改變相機解析度。
 - **mode grayscale/(color)** 更改灰度或彩色相機(目前不支援灰度)。
-- **mode image/stream/(stop)** 開啟/關閉 圖流或串流服務，同一時間只能開啟一項服務。
+- **mode image/stream/(stop)/?** 開啟/關閉 圖流或串流服務，同一時間只能開啟一項服務。
 - **sd on** 啟動SD卡模組保存，預設不啟動SD卡儲存。
 
 ## 常見問題解答
