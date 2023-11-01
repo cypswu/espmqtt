@@ -16,6 +16,7 @@
       const topic = urlParams.get('topic') || 'testTopic';
       const mqttServer = urlParams.get('mqttServer') || 'wss://test.mosquitto.org:8081';
       const clientId = 'EWCmqttClient_' + Math.random().toString(16).substr(2, 8);
+      const outTopic = topic + "_out";
 
       const client = new Paho.MQTT.Client(mqttServer, clientId);
       client.onConnectionLost = onConnectionLost;
@@ -25,6 +26,7 @@
       function onConnect() {
         console.log('Connected');
         client.subscribe(topic);
+  	client.subscribe(outTopic);
       }
 
       function onConnectionLost(responseObject) {
@@ -35,7 +37,16 @@
 
       function onMessageArrived(message) {
         const responseBox = document.getElementById('responseBox');
-        responseBox.value = message.payloadString + '\n' + responseBox.value;
+	switch(message.destinationName) {
+    	  case topic:
+            responseBox.value = message.payloadString + '\n' + responseBox.value;
+            break;
+	  case outTopic:
+            responseBox.value = message.payloadString + '\n' + responseBox.value;
+            break;
+          default:
+            console.log(`Received message from unknown topic: ${message.payloadString}`);
+        }
       }
 
       function sendMqttMessage(text) {
