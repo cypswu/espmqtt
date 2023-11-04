@@ -73,7 +73,10 @@
         sendMqttMessage(inputBox.value);
       });
       document.getElementById('btnCapture').addEventListener('click', () => { sendMqttMessage('capture'); });
-      document.getElementById('btnSetPin').addEventListener('click', () => { sendMqttMessage('led pin_4'); });
+      document.getElementById('btnSetPin').addEventListener('click', () => { 
+        var pin = document.getElementById('pinInput').value;
+        sendMqttMessage('led pin_' + pin);
+      });
       document.getElementById('btnPinStatus').addEventListener('click', () => { sendMqttMessage('led ?'); });
       document.getElementById('switchLed').addEventListener('change', function() {
         if(this.checked) {
@@ -145,7 +148,10 @@
         <button type="button" id="btnCapture" class="btn btn-secondary">影像傳送通知</button>
       </div>
       <div class="col-auto">
-        <button type="button" id="btnSetPin" class="btn btn-secondary">設補光燈(IO4)</button>
+        <label for="pinInput">補光燈(IO</label>
+        <input type="number" id="pinInput" value="4" min="0" max="39" style="width: 3em;">
+        <label for="pinInput">)</label>
+        <button type="button" id="btnSetPin" class="btn btn-secondary">設置</button>
       </div>
     </div>
     <div class="row mt-3">
