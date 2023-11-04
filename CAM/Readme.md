@@ -35,12 +35,11 @@
 【 V1.0.231101 】
 - **初始功能** WiFi或MQTT超過10分鐘無法連線，或AP配置超過6分鐘無法連線就重啟設備。
 - **GPIO13按鈕** 在開機時，按下(接地)超過3秒進入AP模式，超過30秒清除所有設置。
-- **FLASH按鈕** 開機後，按下FLASH按鈕(IO0)持續30秒系統會進入AP配置模式。
 - **reboot** 重啟設備，Serial命令可支援。
 - **reset_wifi** 重設WIFI配置，Serial命令可支援。
 - **update** 更新韌體。
 - **capture** 獲取當前影像。
-- **led on/off/?/pin_4** 補光燈開啟、關閉、狀態、PIN腳，使用前須先定義腳位。
+- **led on/off/?/pin_4/pin ?** 補光燈開啟、關閉、狀態、PIN腳，使用前須先定義腳位。
 - **img qvga/(vga)/svga/xga/sxga/uxga/?** 改變/檢視相機解析度。
 - **mode grayscale/(color)** 更改灰度或彩色相機(目前不支援灰度)。
 - **mode image/stream/(stop)/?** 開啟/關閉 圖流或串流服務，同一時間只能開啟一項服務。
