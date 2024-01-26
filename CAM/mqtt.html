@@ -30,11 +30,23 @@
       const mqttServer = urlParams.get('mqttServer') || 'wss://test.mosquitto.org:8081';
       const clientId = 'EWCmqttClient_' + Math.random().toString(16).substr(2, 8);
       const outTopic = topic + "_out";
+			
+      const encodedCredentials = urlParams.get('UP') || '';
+      const decodedCredentials = atob(encodedCredentials);
+      const credentials = decodedCredentials.split(':');
+      const mqttUser = credentials[0] || '';
+      const mqttPassword = credentials[1] || '';
+
 
       const client = new Paho.MQTT.Client(mqttServer, clientId);
       client.onConnectionLost = onConnectionLost;
       client.onMessageArrived = onMessageArrived;
-      client.connect({ onSuccess: onConnect });
+			const options = {
+			  onSuccess: onConnect,
+			  userName: mqttUser,
+			  password: mqttPassword
+			};
+      client.connect(options);
 
       function onConnect() {
         console.log('Connected');
