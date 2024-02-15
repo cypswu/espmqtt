@@ -1,5 +1,5 @@
+<!-- 版本 1.0.0 - 更新日期: 2024-02-15 -->
 <!DOCTYPE html>
-
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
@@ -49,14 +49,18 @@
       client.connect(options);
 
       function onConnect() {
+        const responseBox = document.getElementById('responseBox');
         console.log('Connected');
         client.subscribe(topic);
         client.subscribe(outTopic);
+        responseBox.value = 'Connected' + '\n' + responseBox.value;
       }
 
       function onConnectionLost(responseObject) {
+        const responseBox = document.getElementById('responseBox');
         if (responseObject.errorCode !== 0) {
           console.log('Connection lost: ' + responseObject.errorMessage);
+          responseBox.value = 'Connection lost' + '\n' + responseBox.value;
         }
       }
 
