@@ -1,0 +1,27 @@
+{
+  "name": "EWC 32CAM",
+  "version": "1.0.2402290",
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        {
+          "path": "firm/EWC_Cam.ino.bootloader.bin",
+          "offset": 4096
+        },
+        {
+          "path": "firm/EWC_Cam.ino.partitions.bin",
+          "offset": 32768
+        },
+        {
+          "path": "firm/EWC_Cam.boot_app0.bin",
+          "offset": 57344
+        },
+        {
+          "path": "firm/EWC_Cam.ino.bin",
+          "offset": 65536
+        }
+      ]
+    }
+  ]
+}
