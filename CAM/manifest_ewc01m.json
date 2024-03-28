@@ -1,0 +1,16 @@
+{
+  "name": "EWC Light Firmware",
+  "version": "1.8.2310120",
+	"new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP8266",
+      "parts": [
+        {
+          "path": "firm/EWC_Light2.ino.bin",
+          "offset": 0
+        }
+      ]
+    }
+  ]
+}

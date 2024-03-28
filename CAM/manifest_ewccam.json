@@ -1,6 +1,7 @@
 {
   "name": "EWC 32CAM",
   "version": "1.0.2402290",
+	"new_install_prompt_erase": true,
   "builds": [
     {
       "chipFamily": "ESP32",
