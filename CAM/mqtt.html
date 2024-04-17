@@ -94,6 +94,8 @@
         client.send(message);
       }
 
+      document.getElementById('saveCameraSettings').addEventListener('click', () => { sendMqttMessage('save'); });
+      document.getElementById('showCameraSettings').addEventListener('click', () => { sendMqttMessage('show'); });
       document.getElementById('sendButton').addEventListener('click', () => {
         const inputBox = document.getElementById('inputBox');
         sendMqttMessage(inputBox.value);
@@ -168,8 +170,8 @@
             <i class="bi bi-list"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton1">
-            <li><a class="dropdown-item" href="#" onclick="sendMqttMessage('save')">儲存相機參數</a></li>
-            <li><a class="dropdown-item" href="#" onclick="sendMqttMessage('show')">顯示相機參數</a></li>
+            <li><a class="dropdown-item" id="saveCameraSettings">儲存相機參數</a></li>
+            <li><a class="dropdown-item" id="showCameraSettings">顯示相機參數</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="https://github.com/cypswu/espmqtt/tree/main/CAM#%E5%8A%9F%E8%83%BD%E8%88%87%E5%91%BD%E4%BB%A4" target="_blank">線上手冊</a></li>
           </ul>
