@@ -1,4 +1,4 @@
-<!-- 版本 1.0.0 - 更新日期: 2024-02-15 -->
+<!-- 版本 1.2.0 - 更新日期: 2024-04-17 -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -7,6 +7,7 @@
   <link rel="icon" href="favicon.ico" />
   <title>EWC 32CAM 控制中心</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <style>
     .question-mark-btn {
       background-color: #007BFF;
@@ -18,6 +19,15 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
+    }
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-title {
+      flex-grow: 1;
+      text-align: center;
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
@@ -145,10 +155,27 @@
   </script>
 </head>
 <body onload="init()">
-  <div class="text-center mt-5 border rounded p-3 shadow-lg">
-    <h1 class="display-4 text-dark font-weight-bold border-bottom pb-2">
-        EWC32-CAM控制中心
-    </h1>
+  <div class="container">
+    <div class="text-center mt-5 border rounded p-3 shadow-lg header-container">
+      <div> <!-- Placeholder for flex alignment -->
+      </div>
+      <h1 class="display-4 text-dark font-weight-bold border-bottom pb-2 header-title">
+          EWC32-CAM控制中心
+      </h1>
+      <div>
+        <div class="dropdown">
+          <button class="btn btn-secondary" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-list"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton1">
+            <li><a class="dropdown-item" href="#" onclick="sendMqttMessage('save')">儲存相機參數</a></li>
+            <li><a class="dropdown-item" href="#" onclick="sendMqttMessage('show')">顯示相機參數</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="https://github.com/cypswu/espmqtt/tree/main/CAM#%E5%8A%9F%E8%83%BD%E8%88%87%E5%91%BD%E4%BB%A4" target="_blank">線上手冊</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="container">
     <div class="row mt-5">
