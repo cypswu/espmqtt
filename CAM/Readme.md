@@ -41,6 +41,8 @@
 - **reboot** 重啟設備，Serial命令可支援。
 - **reset_wifi** 重設WIFI配置，Serial命令可支援。
 - **update** 更新韌體。
+- **save** 保存相機當前參數，下次開機自動恢復保存狀態。
+- **show** 檢視相機預設參數(分辨率,串流開關,補光燈)。
 - **capture** 獲取當前影像。
 - **led on/off/?/pin_4/pin ?** 補光燈開啟、關閉、狀態、PIN腳，使用前須先定義腳位。
 - **img qvga/(vga)/svga/xga/sxga/uxga/?** 改變/檢視相機解析度。
