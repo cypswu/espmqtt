@@ -42,13 +42,13 @@
 - **reset_wifi** 重設WIFI配置，Serial命令可支援。
 - **update** 更新韌體。
 - **save** 保存相機當前參數，下次開機自動恢復保存狀態。
-- **show** 檢視相機預設參數(分辨率,串流開關,補光燈)。
+- **show** 檢視相機預設參數(分辨率,串流開關,補光燈,SD卡)。
 - **capture** 獲取當前影像並發送Line通知。
 - **led on/off/?/pin_4/pin ?** 補光燈開啟、關閉、狀態、PIN腳，使用前須先定義腳位。
 - **img qvga/(vga)/svga/xga/sxga/uxga/?** 改變/檢視相機解析度。
 - **mode grayscale/(color)** 更改灰度或彩色相機(目前不支援灰度)。
 - **mode image/stream/(stop)/?** 開啟/關閉 圖流或串流服務，同一時間只能開啟一項服務。
-- **sd on** 啟動SD卡模組保存，預設不啟動SD卡儲存。
+- **sd on/off** 啟動/關閉 SD卡模組保存，預設不啟動SD卡儲存。
 - **heartbeat** 顯示心跳通知設置時間。
 - URL功能參數：
   - `&led=on`：開啟補光燈，並在3秒後自動關閉。
