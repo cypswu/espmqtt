@@ -47,7 +47,6 @@
       const mqttUser = credentials[0] || '';
       const mqttPassword = credentials[1] || '';
 
-
       const client = new Paho.MQTT.Client(mqttServer, clientId);
       client.onConnectionLost = onConnectionLost;
       client.onMessageArrived = onMessageArrived;
@@ -64,6 +63,20 @@
         client.subscribe(topic);
         client.subscribe(outTopic);
         responseBox.value = 'Connected' + '\n' + responseBox.value;
+				
+				// 檢查URL是否包含'led=on'參數，有就開燈後三秒發送'led off'
+				if (urlParams.get('led') === 'on') {
+					sendMqttMessage('led on');
+					setTimeout(() => {
+						const messageOff = new Paho.MQTT.Message('led off');
+						messageOff.destinationName = topic;
+						client.send(messageOff);
+					}, 3000);  // 3000毫秒後關燈，即3秒
+				}
+				// 檢查URL是否包含'img=send'參數，有就發送影像通知
+				if (urlParams.get('img') === 'send') {
+					sendMqttMessage('capture');
+				}
       }
 
       function onConnectionLost(responseObject) {
@@ -148,7 +161,6 @@
         }
       });
       document.getElementById('btnReslutStatus').addEventListener('click', () => { sendMqttMessage('img ?'); });
-
     }
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
