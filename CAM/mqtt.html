@@ -1,4 +1,4 @@
-<!-- 版本 1.2.0 - 更新日期: 2024-05-09 -->
+<!-- 版本 1.2.1 - 更新日期: 2024-06-08 -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -8,6 +8,7 @@
   <title>EWC 32CAM 控制中心</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
   <style>
     .question-mark-btn {
       background-color: #007BFF;
@@ -29,147 +30,248 @@
       flex-grow: 1;
       text-align: center;
     }
+    .dropdown-menu {
+      display: none;
+    }
+    .dropdown-menu.show {
+      display: block;
+    }
+    /* 子選單箭頭與展開樣式 */
+    .dropdown-submenu > a::after {
+      content: "\f0da";
+      float: right;
+      font-family: 'Font Awesome 5 Free';
+      font-weight: 900;
+    }
+    .dropdown-submenu.expanded > a::after {
+      content: " \f0d7";
+      font-family: "Font Awesome 5 Free";
+      font-weight: 900;
+    }
+    /* 已選項目前標示 */
+    .dropdown-item.selected::before {
+      content: "\f00c ";
+      font-family: 'Font Awesome 5 Free';
+      font-weight: 900;
+      color: green;
+      margin-right: 5px;
+    }
+    /* 未選項目前標示 */
+    .dropdown-item.not-selected::before {
+      content: "\f192 ";
+      font-family: 'Font Awesome 5 Free';
+      font-weight: 900;
+      color: gray;
+      font-size: 0.75rem; /* 調整小點大小 */
+      margin-right: 5px; /* 調整小點與文本的距離 */
+    }
+    /* 子選單位置樣式，顯示在左邊 */
+    .dropdown-submenu {
+      position: relative;
+    }
+    .dropdown-submenu > .dropdown-menu {
+      top: 0;
+      right: 100%;
+      margin-top: -6px;
+      margin-right: 0;
+      border-radius: 0.25rem;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   <script>
-    function init() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const topic = urlParams.get('topic') || 'testTopic';
-      const mqttServer = urlParams.get('mqttServer') || 'wss://test.mosquitto.org:8081';
-      const clientId = 'EWCmqttClient_' + Math.random().toString(16).substr(2, 8);
-      const outTopic = topic + "_out";
-			
-      const encodedCredentials = urlParams.get('UP') || '';
-      const decodedCredentials = atob(encodedCredentials);
-      const credentials = decodedCredentials.split(':');
-      const mqttUser = credentials[0] || '';
-      const mqttPassword = credentials[1] || '';
+    document.addEventListener('DOMContentLoaded', (event) => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const topic = urlParams.get('topic') || 'testTopic';
+        const mqttServer = urlParams.get('mqttServer') || 'wss://test.mosquitto.org:8081';
+        const clientId = 'EWCmqttClient_' + Math.random().toString(16).substr(2, 8);
+        const outTopic = topic + "_out";
 
-      const client = new Paho.MQTT.Client(mqttServer, clientId);
-      client.onConnectionLost = onConnectionLost;
-      client.onMessageArrived = onMessageArrived;
-			const options = {
-			  onSuccess: onConnect,
-			  userName: mqttUser,
-			  password: mqttPassword
-			};
-      client.connect(options);
+        const encodedCredentials = urlParams.get('UP') || '';
+        const decodedCredentials = atob(encodedCredentials);
+        const credentials = decodedCredentials.split(':');
+        const mqttUser = credentials[0] || '';
+        const mqttPassword = credentials[1] || '';
 
-      function onConnect() {
-        const responseBox = document.getElementById('responseBox');
-        console.log('Connected');
-        client.subscribe(topic);
-        client.subscribe(outTopic);
-        responseBox.value = 'Connected' + '\n' + responseBox.value;
-				
-				// 檢查URL是否包含'led=on'參數，有就開燈後三秒發送'led off'
-				if (urlParams.get('led') === 'on') {
-					sendMqttMessage('led on');
-					setTimeout(() => {
-						const messageOff = new Paho.MQTT.Message('led off');
-						messageOff.destinationName = topic;
-						client.send(messageOff);
-					}, 3000);  // 3000毫秒後關燈，即3秒
-				}
-				// 檢查URL是否包含'img=send'參數，有就發送影像通知
-				if (urlParams.get('img') === 'send') {
-					sendMqttMessage('capture');
-				}
-      }
+        const client = new Paho.MQTT.Client(mqttServer, clientId);
 
-      function onConnectionLost(responseObject) {
-        const responseBox = document.getElementById('responseBox');
-        if (responseObject.errorCode !== 0) {
-          console.log('Connection lost: ' + responseObject.errorMessage);
-          responseBox.value = 'Connection lost' + '\n' + responseBox.value;
+        function sendMqttMessage(text) {
+            const message = new Paho.MQTT.Message(text);
+            message.destinationName = topic;
+            client.send(message);
         }
-      }
 
-      function onMessageArrived(message) {
-        const responseBox = document.getElementById('responseBox');
-        switch(message.destinationName) {
-          case topic:
-            responseBox.value = message.payloadString + '\n' + responseBox.value;
-            break;
-          case outTopic:
-            responseBox.value = message.payloadString + '\n' + responseBox.value;
-            break;
-          default:
-            console.log(`Received message from unknown topic: ${message.payloadString}`);
+        client.onConnectionLost = onConnectionLost;
+        client.onMessageArrived = onMessageArrived;
+        const options = {
+            onSuccess: onConnect,
+            userName: mqttUser,
+            password: mqttPassword
+        };
+        client.connect(options);
+
+        function onConnect() {
+            const responseBox = document.getElementById('responseBox');
+            console.log('Connected');
+            client.subscribe(topic);
+            client.subscribe(outTopic);
+            responseBox.value = 'Connected' + '\n' + responseBox.value;
+
+            // 檢查URL是否包含'led=on'參數，有就開燈後三秒發送'led off'
+            if (urlParams.get('led') === 'on') {
+                sendMqttMessage('led on');
+                setTimeout(() => {
+                    const messageOff = new Paho.MQTT.Message('led off');
+                    messageOff.destinationName = topic;
+                    client.send(messageOff);
+                }, 3000);  // 3000毫秒後關燈，即3秒
+            }
+            // 檢查URL是否包含'img=send'參數，有就發送影像通知
+            if (urlParams.get('img') === 'send') {
+                sendMqttMessage('capture');
+            }
         }
-      }
 
-      function sendMqttMessage(text) {
-        const message = new Paho.MQTT.Message(text);
-        message.destinationName = topic;
-        client.send(message);
-      }
+        function onConnectionLost(responseObject) {
+            const responseBox = document.getElementById('responseBox');
+            if (responseObject.errorCode !== 0) {
+                console.log('Connection lost: ' + responseObject.errorMessage);
+                responseBox.value = 'Connection lost' + '\n' + responseBox.value;
+            }
+        }
 
-      document.getElementById('saveCameraSettings').addEventListener('click', () => { sendMqttMessage('save'); });
-      document.getElementById('showCameraSettings').addEventListener('click', () => { sendMqttMessage('show'); });
-      document.getElementById('rebootCamera').addEventListener('click', () => { sendMqttMessage('reboot'); });
-      document.getElementById('sendButton').addEventListener('click', () => {
-        const inputBox = document.getElementById('inputBox');
-        sendMqttMessage(inputBox.value);
-      });
-      document.getElementById('btnCapture').addEventListener('click', () => { sendMqttMessage('capture'); });
-      document.getElementById('btnSetPin').addEventListener('click', () => { 
-        var pin = document.getElementById('pinInput').value;
-        sendMqttMessage('led pin_' + pin);
-      });
-      document.getElementById('btnPinNumStatus').addEventListener('click', () => { sendMqttMessage('led pin ?'); });
-      document.getElementById('switchLed').addEventListener('change', function() {
-        if(this.checked) {
-          sendMqttMessage('led on');
+        function onMessageArrived(message) {
+            const responseBox = document.getElementById('responseBox');
+            switch(message.destinationName) {
+                case topic:
+                    responseBox.value = message.payloadString + '\n' + responseBox.value;
+                    break;
+                case outTopic:
+                    responseBox.value = message.payloadString + '\n' + responseBox.value;
+                    break;
+                default:
+                    console.log(`Received message from unknown topic: ${message.payloadString}`);
+            }
+        }
+
+        document.getElementById('saveCameraSettings').addEventListener('click', () => { sendMqttMessage('save'); });
+        document.getElementById('showCameraSettings').addEventListener('click', () => { sendMqttMessage('show'); });
+        document.getElementById('rebootCamera').addEventListener('click', () => { sendMqttMessage('reboot'); });
+        document.getElementById('sendButton').addEventListener('click', () => {
+            const inputBox = document.getElementById('inputBox');
+            sendMqttMessage(inputBox.value);
+            inputBox.value = ''; // 清空輸入框
+        });
+        document.getElementById('btnCapture').addEventListener('click', () => { sendMqttMessage('capture'); });
+        document.getElementById('btnSetPin').addEventListener('click', () => { 
+            var pin = document.getElementById('pinInput').value;
+            sendMqttMessage('led pin_' + pin);
+        });
+        document.getElementById('btnPinNumStatus').addEventListener('click', () => { sendMqttMessage('led pin ?'); });
+        document.getElementById('switchLed').addEventListener('change', function() {
+            if(this.checked) {
+                sendMqttMessage('led on');
+            } else {
+                sendMqttMessage('led off');
+            }
+        });
+        document.getElementById('btnPinStatus').addEventListener('click', () => { sendMqttMessage('led ?'); });
+        document.getElementById('switchStream').addEventListener('change', function() {
+            if(this.checked) {
+                sendMqttMessage('mode stream');
+            } else {
+                sendMqttMessage('mode stop');
+            }
+        });
+        document.getElementById('btnStreamStatus').addEventListener('click', () => { sendMqttMessage('mode ?'); });
+        document.getElementById('resolutionSelector').addEventListener('change', function() {
+            const selectedResolution = this.value;
+            switch (selectedResolution) {
+                case "uxga":
+                    sendMqttMessage('img uxga');
+                    break;
+                case "sxga":
+                    sendMqttMessage('img sxga');
+                    break;
+                case "xga":
+                    sendMqttMessage('img xga');
+                    break;
+                case "svga":
+                    sendMqttMessage('img svga');
+                    break;
+                case "vga":
+                    sendMqttMessage('img vga');
+                    break;
+                case "qvga":
+                    sendMqttMessage('img qvga');
+                    break;
+                default:
+                    break;
+            }
+        });
+        document.getElementById('btnReslutStatus').addEventListener('click', () => { sendMqttMessage('img ?'); });
+
+        // 取得所有模式選項
+        const modeOptions = document.querySelectorAll('.mode-option');
+        const toggleCameraModes = document.getElementById('toggleCameraModes');
+        const cameraModeOptions = document.getElementById('cameraModeOptions');
+
+        // 檢查是否取得了所需的DOM元素
+        if (modeOptions.length && toggleCameraModes && cameraModeOptions) {
+            // 設置預設選中的模式
+            const defaultMode = 'stream';
+            modeOptions.forEach(option => {
+                const mode = option.getAttribute('data-mode');
+                if (mode === defaultMode) {
+                    option.classList.add('selected');
+                    option.classList.remove('not-selected');
+                } else {
+                    option.classList.add('not-selected');
+                }
+            });
+
+            // 監聽切換相機模式按鈕的點擊事件
+            toggleCameraModes.addEventListener('click', function (event) {
+                event.stopPropagation(); // 防止事件冒泡
+                cameraModeOptions.classList.toggle('show');
+                this.parentElement.classList.toggle('expanded');
+            });
+
+            // 為每個模式選項添加點擊事件
+            modeOptions.forEach(option => {
+                option.addEventListener('click', function (event) {
+                    event.stopPropagation(); // 防止事件冒泡
+                    // 取得選擇的模式
+                    const selectedMode = this.getAttribute('data-mode');
+
+                    // 發送 MQTT 訊息以切換模式
+                    sendMqttMessage(`mode ${selectedMode}`);
+
+                    // 更新選單選項的狀態
+                    modeOptions.forEach(opt => {
+                        opt.classList.remove('selected');
+                        opt.classList.add('not-selected');
+                    });
+                    this.classList.add('selected');
+                    this.classList.remove('not-selected');
+                    
+                    // 保持選單展開狀態
+                    cameraModeOptions.classList.add('show');
+                    toggleCameraModes.parentElement.classList.add('expanded');
+                });
+            });
         } else {
-          sendMqttMessage('led off');
+            console.warn('Some required DOM elements are missing.');
         }
-      });
-      document.getElementById('btnPinStatus').addEventListener('click', () => { sendMqttMessage('led ?'); });
-      document.getElementById('switchStream').addEventListener('change', function() {
-        if(this.checked) {
-          sendMqttMessage('mode stream');
-        } else {
-          sendMqttMessage('mode stop');
-        }
-      });
-      document.getElementById('btnStreamStatus').addEventListener('click', () => { sendMqttMessage('mode ?'); });
-      document.getElementById('resolutionSelector').addEventListener('change', function() {
-        const selectedResolution = this.value;
-        switch (selectedResolution) {
-          case "uxga":
-            sendMqttMessage('img uxga');
-            break;
-          case "sxga":
-            sendMqttMessage('img sxga');
-            break;
-          case "xga":
-            sendMqttMessage('img xga');
-            break;
-          case "svga":
-            sendMqttMessage('img svga');
-            break;
-          case "vga":
-            sendMqttMessage('img vga');
-            break;
-          case "qvga":
-            sendMqttMessage('img qvga');
-            break;
-          default:
-            break;
-        }
-      });
-      document.getElementById('btnReslutStatus').addEventListener('click', () => { sendMqttMessage('img ?'); });
-    }
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-      return new bootstrap.Tooltip(tooltipTriggerEl)
-    })			
+    });
+
+    document.addEventListener('DOMContentLoaded', (event) => {
+        init();
+    });
   </script>
 </head>
-<body onload="init()">
+<body>
   <div class="container">
     <div class="text-center mt-5 border rounded p-3 shadow-lg header-container">
       <div> <!-- Placeholder for flex alignment -->
@@ -183,6 +285,15 @@
             <i class="bi bi-list"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton1">
+            <li class="dropdown-submenu">
+              <a class="dropdown-item" id="toggleCameraModes">切換串流模式</a>
+              <ul class="dropdown-menu" id="cameraModeOptions">
+                <li><a class="dropdown-item mode-option not-selected" data-mode="image">IMAGE</a></li>
+                <li><a class="dropdown-item mode-option not-selected" data-mode="stream">STREAM</a></li>
+                <li><a class="dropdown-item mode-option not-selected" data-mode="rtsp">RTSP</a></li>
+              </ul>
+            </li>
+            <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" id="saveCameraSettings">儲存相機參數</a></li>
             <li><a class="dropdown-item" id="showCameraSettings">顯示相機參數</a></li>
             <li><hr class="dropdown-divider"></li>
