@@ -81,7 +81,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   <script>
-    init() {
+    function init() {
         const urlParams = new URLSearchParams(window.location.search);
         const topic = urlParams.get('topic') || 'testTopic';
         const mqttServer = urlParams.get('mqttServer') || 'wss://test.mosquitto.org:8081';
@@ -264,7 +264,7 @@
         } else {
             console.warn('Some required DOM elements are missing.');
         }
-    });
+    }
 
     document.addEventListener('DOMContentLoaded', (event) => {
         init();
