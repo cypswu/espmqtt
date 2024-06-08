@@ -1,4 +1,4 @@
-<!-- 版本 1.2.1 - 更新日期: 2024-06-08 -->
+<!-- 版本 1.2.2 - 更新日期: 2024-06-08 -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -81,6 +81,10 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/js/bootstrap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
   <script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        init();
+    });
+
     function init() {
         const urlParams = new URLSearchParams(window.location.search);
         const topic = urlParams.get('topic') || 'testTopic';
@@ -141,19 +145,63 @@
             }
         }
 
-        function onMessageArrived(message) {
-            const responseBox = document.getElementById('responseBox');
-            switch(message.destinationName) {
-                case topic:
-                    responseBox.value = message.payloadString + '\n' + responseBox.value;
-                    break;
-                case outTopic:
-                    responseBox.value = message.payloadString + '\n' + responseBox.value;
-                    break;
-                default:
-                    console.log(`Received message from unknown topic: ${message.payloadString}`);
+    function onMessageArrived(message) {
+        const responseBox = document.getElementById('responseBox');
+        const payload = message.payloadString;
+        responseBox.value = payload + '\n' + responseBox.value;
+
+        if (message.destinationName === outTopic) {
+            // 檢查是否為 mode ? 回應
+            if (payload.includes('目前的服務模式是')) {
+                const currentMode = payload.match(/目前的服務模式是 (\w+)/)[1].toLowerCase();
+                
+                // 還原 switchStream 的狀態
+                const switchStream = document.getElementById('switchStream');
+                switchStream.checked = currentMode !== 'stop';
+
+                // 還原 cameraModeOptions 的狀態
+                const modeOptions = document.querySelectorAll('.mode-option');
+                modeOptions.forEach(option => {
+                    const mode = option.getAttribute('data-mode');
+                    if (mode === currentMode) {
+                        option.classList.add('selected');
+                        option.classList.remove('not-selected');
+                    } else {
+                        option.classList.remove('selected');
+                        option.classList.add('not-selected');
+                    }
+                });
+            }
+
+            // 檢查是否為 led ? 回應
+            if (payload.includes('補光燈')) {
+                const ledStatus = payload.includes('開啟');
+                const switchLed = document.getElementById('switchLed');
+                switchLed.checked = ledStatus;
+            }
+
+            // 檢查是否為 img ? 回應
+            if (payload.includes('當前的解析度是')) {
+                const currentResolution = payload.match(/當前的解析度是: (\w+)/)[1].toLowerCase();
+                const resolutionSelector = document.getElementById('resolutionSelector');
+                resolutionSelector.value = currentResolution;
+            }
+
+            // 檢查是否為 led pin ? 回應
+            if (payload.includes('補光燈腳位是IO')) {
+                const pinNumber = payload.match(/補光燈腳位是IO(\d+)/)[1];
+                const pinInput = document.getElementById('pinInput');
+                pinInput.value = pinNumber;
             }
         }
+    }
+
+        // 取得所有模式選項
+        const modeOptions = document.querySelectorAll('.mode-option');
+        const toggleCameraModes = document.getElementById('toggleCameraModes');
+        const cameraModeOptions = document.getElementById('cameraModeOptions');
+        const dropdownMenuButton1 = document.getElementById('dropdownMenuButton1');
+        let selectedMode = 'stream'; // 初始化為預設模式
 
         document.getElementById('saveCameraSettings').addEventListener('click', () => { sendMqttMessage('save'); });
         document.getElementById('showCameraSettings').addEventListener('click', () => { sendMqttMessage('show'); });
@@ -179,7 +227,7 @@
         document.getElementById('btnPinStatus').addEventListener('click', () => { sendMqttMessage('led ?'); });
         document.getElementById('switchStream').addEventListener('change', function() {
             if(this.checked) {
-                sendMqttMessage('mode stream');
+                sendMqttMessage(`mode ${selectedMode}`);
             } else {
                 sendMqttMessage('mode stop');
             }
@@ -212,18 +260,12 @@
         });
         document.getElementById('btnReslutStatus').addEventListener('click', () => { sendMqttMessage('img ?'); });
 
-        // 取得所有模式選項
-        const modeOptions = document.querySelectorAll('.mode-option');
-        const toggleCameraModes = document.getElementById('toggleCameraModes');
-        const cameraModeOptions = document.getElementById('cameraModeOptions');
-
         // 檢查是否取得了所需的DOM元素
         if (modeOptions.length && toggleCameraModes && cameraModeOptions) {
             // 設置預設選中的模式
-            const defaultMode = 'stream';
             modeOptions.forEach(option => {
                 const mode = option.getAttribute('data-mode');
-                if (mode === defaultMode) {
+                if (mode === selectedMode) {
                     option.classList.add('selected');
                     option.classList.remove('not-selected');
                 } else {
@@ -238,16 +280,16 @@
                 this.parentElement.classList.toggle('expanded');
             });
 
+            // 監聽 dropdownMenuButton1 的收合事件，隱藏 cameraModeOptions
+            dropdownMenuButton1.addEventListener('hidden.bs.dropdown', function () {
+                cameraModeOptions.classList.remove('show');
+                toggleCameraModes.parentElement.classList.remove('expanded');
+            });
+
             // 為每個模式選項添加點擊事件
             modeOptions.forEach(option => {
                 option.addEventListener('click', function (event) {
                     event.stopPropagation(); // 防止事件冒泡
-                    // 取得選擇的模式
-                    const selectedMode = this.getAttribute('data-mode');
-
-                    // 發送 MQTT 訊息以切換模式
-                    sendMqttMessage(`mode ${selectedMode}`);
-
                     // 更新選單選項的狀態
                     modeOptions.forEach(opt => {
                         opt.classList.remove('selected');
@@ -255,7 +297,8 @@
                     });
                     this.classList.add('selected');
                     this.classList.remove('not-selected');
-                    
+                    // 設置選擇的模式
+                    selectedMode = this.getAttribute('data-mode');
                     // 保持選單展開狀態
                     cameraModeOptions.classList.add('show');
                     toggleCameraModes.parentElement.classList.add('expanded');
@@ -265,10 +308,6 @@
             console.warn('Some required DOM elements are missing.');
         }
     }
-
-    document.addEventListener('DOMContentLoaded', (event) => {
-        init();
-    });
   </script>
 </head>
 <body>
