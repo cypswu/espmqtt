@@ -175,7 +175,7 @@
             }
 
             // 檢查是否為 led ? 回應
-            if (payload.includes('補光燈')) {
+            if (payload.includes('補光燈') && !payload.includes('補光燈腳位')) {
                 const ledStatus = payload.includes('開啟');
                 const switchLed = document.getElementById('switchLed');
                 switchLed.checked = ledStatus;
