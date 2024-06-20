@@ -153,11 +153,12 @@
         if (message.destinationName === outTopic) {
             // 檢查是否為 mode ? 回應
             if (payload.includes('目前的服務模式是')) {
-                const currentMode = payload.match(/目前的服務模式是 (\w+)/)[1].toLowerCase();
-                
+                const match = payload.match(/目前的服務模式是 (\w+)/);
+                const currentMode = match[1].toLowerCase();
+              
                 // 還原 switchStream 的狀態
                 const switchStream = document.getElementById('switchStream');
-                switchStream.checked = currentMode !== 'stop';
+                switchStream.checked = currentMode !== 'none';
 
                 // 還原 cameraModeOptions 的狀態
                 const modeOptions = document.querySelectorAll('.mode-option');
