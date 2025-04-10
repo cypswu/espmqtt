@@ -1,4 +1,4 @@
-<!-- 版本 1.2.2 - 更新日期: 2024-06-08 -->
+<!-- 版本 1.2.4 - 更新日期: 2025-04-10 -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -237,6 +237,9 @@
         document.getElementById('resolutionSelector').addEventListener('change', function() {
             const selectedResolution = this.value;
             switch (selectedResolution) {
+                case "qxga":
+                    sendMqttMessage('img qxga');
+                    break;
                 case "uxga":
                     sendMqttMessage('img uxga');
                     break;
@@ -391,6 +394,7 @@
       <div class="col-auto d-flex align-items-center">
         <select id="resolutionSelector" class="form-select form-select-lg mb-3" style="font-size: 1rem;">
           <option value="" selected>請選擇解析度...(VGA)</option>
+          <option value="qxga">QXGA (2048x1536)</option>
           <option value="uxga">UXGA (1600x1200)</option>
           <option value="sxga">SXGA (1280x1024)</option>
           <option value="xga">XGA (1024x768)</option>
