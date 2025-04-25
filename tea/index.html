@@ -1,0 +1,490 @@
+<!--
+===============================================================================
+品茶 QR Code 管理系統 ‧ 程式說明文件  
+Version : 1.0.0 (2025‑04‑17)  
+Author  : lung / ChatGPT‑o3 collaborative draft  
+License : MIT (可自由改作，請保留版權與授權條款)
+
+▍一、功能總覽
+  1. ✏️  表單輸入 — 一次填寫 26 項茶葉資訊＋產品圖片（Base64）。
+  2. 📷  QR Code 產生 — 將 JSON 壓縮成 Base64 後用 QRious 生成，  
+           自動檢測容量 (≈ 2.9 KB 上限)，超限即提示精簡內容。
+  3. 🔍  QR Code 掃描 — 採用 Html5QrcodeScanner；  
+           預設優先「Camera 2 0 → 後鏡頭 → 第一鏡頭」。  
+           解析後以 **中文對照表** 列出所有欄位，並可預覽圖片。
+  4. 🎨  UI 美學 — 茶葉配色、優雅襯線字體、柔和陰影與進場動畫；  
+           Debug 區可收合，方便開發與正式部署切換。
+  5. 🛠️  可維護性 — 表單欄位、`fields` 陣列、`labelMap` 對照及  
+           CSS 色票皆集中管理；註解標示關鍵修改點。
+
+▍二、快速使用  
+  ① 雙擊 `tea_qrcode_master.html` （或部署於 HTTPS / localhost）。  
+  ② 在「產生 QR Code」分頁輸入資料 → 按「產生 QR Code」。  
+  ③ 切換「掃描 QR Code」分頁 → 授權相機 → 對準剛生成的 QR。  
+  ④ 解析結果將以中文清單呈現，包含圖片預覽（若有）。  
+
+▍三、核心檔案結構（維護時請同步）  
+  • HTML 表單            → id 必須列入 JS `fields` 陣列  
+  • JS `fields[]`        → 決定哪些值被打包進 QR  
+  • JS `labelMap{}`      → 英文鍵 ↔ 中文欄位名（掃描顯示）  
+  • CSS `:root` 變數     → 主題色票，可一鍵換色  
+  • `defaultCamId()`     → 修改鏡頭優先順序正則  
+  • `level:'M'`          → QR 容錯等級 (M/H)，影響可容資料量  
+
+▍四、擴充建議  
+  • 若需更多欄位 → 於表單 / `fields` / `labelMap` 三處同步新增。  
+  • 超容量需求 → 建議改存雲端，再 QR 嵌入短網址。  
+  • 混合多語言 → 以 i18n JSON 檔替換 `labelMap`。  
+  • 企業識別 → 直接更動 `--tea‑*` 變數或置換 Google Fonts。  
+
+▍五、版本紀錄  
+  v1.0.0 (2025‑04‑17)  
+    • 首發：完成 26 欄位、Base64 圖片、掃描中文對照、Master UI  
+    • 新增：欄位內嵌提示、詳細程式內註解、Debug 折疊區  
+    • 美化：漸層背景、卡片陰影、主按鈕浮動動畫  
+
+===============================================================================
+-->
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>品茶 QR Code 管理系統</title>
+
+<!-- -------------------------------------------------
+ 字體與第三方函式庫
+-------------------------------------------------- -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.7/html5-qrcode.min.js"></script>
+
+<!-- -------------------------------------------------
+ 自訂樣式：茶葉配色 ＋ 卡片陰影 ＋ 動畫
+-------------------------------------------------- -->
+<style>
+:root{
+  --tea-primary:#5a7d2c;
+  --tea-primary-dark:#496724;
+  --tea-secondary:#d4c3a0;
+  --tea-bg:#f9f7f2;
+  --tea-text:#3f3320;
+  --bs-primary:var(--tea-primary);
+}
+/* 全域字體與背景 */
+body{
+  font-family:'Noto Serif TC',serif;
+  background:linear-gradient(135deg,var(--tea-bg),#fff);
+  color:var(--tea-text);
+}
+/* 標題使用襯線英文字體，更具高端感 */
+h3,h4,h5{font-family:'Playfair Display',serif;}
+
+/* 頂端導覽列 */
+.navbar{background:var(--tea-primary);}
+.navbar-brand{color:#fff!important;font-weight:600;letter-spacing:1px;transition:opacity .3s;}
+.navbar-brand:hover{opacity:.85;}
+
+/* Bootstrap 分頁強化：無邊框、主色底 */
+.nav-tabs .nav-link{border:0;font-weight:600;color:var(--tea-text);}
+.nav-tabs .nav-link.active{background:var(--tea-secondary);color:var(--tea-text);border-radius:.5rem .5rem 0 0;}
+
+/* 卡片樣式：大圓角＋柔陰影 */
+.card{
+  border:0;border-radius:1rem;
+  box-shadow:0 6px 20px rgba(0,0,0,.08);
+  background:#fff;
+}
+
+/* 主按鈕動畫與配色 */
+.btn-primary{
+  background:var(--tea-primary);border-color:var(--tea-primary);
+  transition:transform .2s,box-shadow .2s;
+}
+.btn-primary:hover{
+  background:var(--tea-primary-dark);border-color:var(--tea-primary-dark);
+  transform:translateY(-2px);box-shadow:0 6px 12px rgba(0,0,0,.12);
+}
+
+/* QR Code canvas 美化 */
+#qr-code{
+  display:block;margin:auto;
+  border:8px solid #fff;border-radius:.75rem;
+  box-shadow:0 4px 16px rgba(0,0,0,.15);
+}
+
+/* Debug 摺疊區塊 */
+.debug-wrapper summary{cursor:pointer;font-weight:600;color:var(--tea-primary-dark);}
+pre.debug{
+  background:#fff;border:1px solid #e6e2d9;border-radius:.5rem;
+  font-size:.875rem;max-height:200px;overflow:auto;
+}
+
+/* 分頁內容進場動畫 */
+@keyframes fadeInUp{0%{opacity:0;transform:translateY(20px)}100%{opacity:1;transform:none}}
+.tab-pane.fade.show.active>.card{animation:fadeInUp .5s ease-out;}
+</style>
+</head>
+<body>
+<!-- -------------------------------------------------
+ 1. 導覽列
+-------------------------------------------------- -->
+<nav class="navbar navbar-expand-lg shadow-sm">
+  <div class="container">
+    <a class="navbar-brand" href="#">品茶 QR Code 管理系統</a>
+  </div>
+</nav>
+
+<div class="container my-5">
+  <!-- -------------------------------------------------
+   2. 分頁標籤（Bootstrap）
+  -------------------------------------------------- -->
+  <ul class="nav nav-tabs mb-0">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#gen">產生 QR Code</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#scan">掃描 QR Code</button></li>
+  </ul>
+
+  <div class="tab-content py-4">
+
+    <!-- ================================================
+      A. 產生 QR Code 分頁
+    =================================================== -->
+    <div class="tab-pane fade show active" id="gen">
+      <div class="card p-4">
+        <h3 class="mb-3">茶葉資訊輸入</h3>
+
+        <!-- ------------- 表單開始 ------------- -->
+        <form id="teaForm">
+
+          <!-- ※ 提示示範：依「使用者容易混淆」準則增添說明 -->
+          <div class="mb-3">
+            <label class="form-label">茶品名稱 <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="productName" placeholder="例：阿里山金萱" required>
+            <small class="form-text">產品外包裝或常用品名</small>
+          </div>
+
+          <!-- ===== 第一排：茶樹品種、分類、製程 ===== -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label">茶樹品種</label>
+              <input type="text" class="form-control" id="teaVariety" placeholder="金萱 (TTES No.12)">
+              <small class="form-text">建議填寫官方或地區常用名稱</small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">茶類分類</label>
+              <input type="text" class="form-control" id="teaCategory" placeholder="半發酵烏龍茶">
+              <small class="form-text">如紅茶 / 綠茶 / 烏龍茶…</small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">製程說明</label>
+              <input type="text" class="form-control" id="processDescription" placeholder="輕焙火、手工揉捻">
+              <small class="form-text">可簡述獨特工藝</small>
+            </div>
+          </div>
+
+          <!-- ===== 發酵‧焙火‧採摘 ===== -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label">發酵程度</label>
+              <input type="text" class="form-control" id="fermentationLevel" placeholder="約 20%">
+              <small class="form-text">數值或文字皆可</small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">焙火程度</label>
+              <input type="text" class="form-control" id="roastLevel" placeholder="輕焙 / 中焙">
+              <small class="form-text">依品牌習慣填寫</small>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">採摘方式</label>
+              <input type="text" class="form-control" id="harvestMethod" placeholder="手採：一心二葉">
+              <small class="form-text">可含採摘期與等級</small>
+            </div>
+          </div>
+
+          <!-- ===== 日期 ===== -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label">採摘日期</label>
+              <input type="date" class="form-control" id="harvestDate">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">加工日期</label>
+              <input type="date" class="form-control" id="productionDate">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">有效期限</label>
+              <input type="date" class="form-control" id="expiryDate">
+            </div>
+          </div>
+
+          <!-- ===== 產地‧海拔‧價格 ===== -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">產地</label>
+              <input type="text" class="form-control" id="origin" placeholder="嘉義阿里山">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">海拔 (m)</label>
+              <input type="number" class="form-control" id="altitude" placeholder="1300">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">價格 (NT$)</label>
+              <input type="number" step="0.01" class="form-control" id="price" placeholder="350">
+            </div>
+          </div>
+
+          <!-- ===== 重量‧保存 ===== -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label">淨重 / 容量</label>
+              <input type="text" class="form-control" id="netWeight" placeholder="75g">
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">保存建議</label>
+              <input type="text" class="form-control" id="storage" placeholder="陰涼乾燥、密封">
+            </div>
+          </div>
+
+          <!-- ===== 製造商‧聯絡 ===== -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">製造商 / 品牌</label>
+              <input type="text" class="form-control" id="manufacturer" placeholder="茶香軒有限公司">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">聯絡資訊</label>
+              <input type="text" class="form-control" id="contactInfo" placeholder="電話 / Email">
+              <small class="form-text">建議留客服專線或信箱</small>
+            </div>
+          </div>
+
+          <!-- ===== 批次‧認證 ===== -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">批次編號</label>
+              <input type="text" class="form-control" id="batchNumber">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">認證資訊</label>
+              <input type="text" class="form-control" id="certification" placeholder="有機驗證 / SGS 檢驗">
+            </div>
+          </div>
+
+          <!-- ===== 茶湯‧香氣‧口感 ===== -->
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label">茶湯色澤</label>
+              <input type="text" class="form-control" id="brewColor" placeholder="蜜綠微黃">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">香氣特徵</label>
+              <input type="text" class="form-control" id="aroma" placeholder="花香、果香">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">風味口感</label>
+              <input type="text" class="form-control" id="flavor" placeholder="圓潤甘醇">
+            </div>
+          </div>
+
+          <!-- ===== 沖泡‧包裝‧備註 ===== -->
+          <div class="row g-3 mb-3">
+            <div class="col-12">
+              <label class="form-label">沖泡建議</label>
+              <input type="text" class="form-control" id="brewAdvice" placeholder="3g‧90°C‧60秒">
+            </div>
+            <div class="col-6">
+              <label class="form-label">包裝型態</label>
+              <input type="text" class="form-control" id="packaging" placeholder="真空包裝">
+            </div>
+            <div class="col-6">
+              <label class="form-label">備註</label>
+              <textarea class="form-control" id="notes" rows="2" placeholder="其他補充資訊"></textarea>
+            </div>
+          </div>
+
+          <!-- ===== 產品圖片 ===== -->
+          <div class="mb-4">
+            <label class="form-label">產品圖片 (選填)</label>
+            <input type="file" class="form-control" id="productImage" accept="image/*">
+            <small class="form-text">圖片會轉成 base64，若檔案過大將超出 QR Code 容量</small>
+          </div>
+
+          <!-- 送出按鈕 -->
+          <button type="submit" class="btn btn-primary px-4">產生 QR Code</button>
+        </form>
+        <!-- ------------- 表單結束 ------------- -->
+
+        <!-- 產生的 QR Code -->
+        <div class="text-center my-4">
+          <canvas id="qr-code" width="420" height="420"></canvas>
+        </div>
+
+        <!-- Debug 區收合 -->
+        <details class="debug-wrapper">
+          <summary>Debug 資訊 ↡</summary>
+          <pre id="orig-payload" class="debug mt-2"></pre>
+          <pre id="b64-payload" class="debug mt-2"></pre>
+        </details>
+      </div>
+    </div>
+
+    <!-- ================================================
+      B. 掃描 QR Code 分頁
+    =================================================== -->
+    <div class="tab-pane fade" id="scan">
+      <div class="card p-4">
+        <h3 class="mb-3">QR Code 掃描</h3>
+        <p class="text-muted">點擊下方相機按鈕後，對準 QR Code 即可。</p>
+
+        <!-- html5‑qrcode Scanner UI 會自動插入此 DIV -->
+        <div id="reader" style="width:100%;max-width:600px;margin:auto;"></div>
+
+        <hr>
+        <!-- 掃描結果輸出 -->
+        <div id="result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- -------------------------------------------------
+ JavaScript 區：產生 + 掃描
+-------------------------------------------------- -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/*----------------------------------------------------
+ 1. 產生 QR Code
+  · 將表單資料組成 JSON ➜ Base64 編碼 ➜ QRious 產圖
+-----------------------------------------------------*/
+const qr = new QRious({
+  element: document.getElementById('qr-code'),
+  size: 420,
+  level: 'M'          // 容錯 M：平衡掃描穩定與可容資料量
+});
+
+document.getElementById('teaForm').addEventListener('submit', e => {
+  e.preventDefault();
+
+  /* ■ 欄位清單：對應表單 id (維護時同步) */
+  const fields = [
+    'productName','teaVariety','teaCategory','processDescription',
+    'fermentationLevel','roastLevel','harvestMethod','harvestDate',
+    'productionDate','expiryDate','origin','altitude','price','netWeight',
+    'storage','manufacturer','contactInfo','batchNumber','certification',
+    'brewColor','aroma','flavor','brewAdvice','packaging','notes'
+  ];
+
+  /* (1) 收集非空值欄位 */
+  const data = {};
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.value.trim()) data[id] = el.value.trim();
+  });
+
+  /* (2) 讀取圖片 (若有) */
+  const file = document.getElementById('productImage').files[0];
+  const finalize = payload => {
+    const json = JSON.stringify(payload);
+    const bytes = new TextEncoder().encode(json).length;
+
+    /* (3) 容量檢查：Version 40 QR 約 2953 bytes */
+    if (bytes > 2953) {
+      alert(`資料過長 (${bytes} bytes)，請精簡內容或移除圖片。`);
+      document.getElementById('orig-payload').textContent = `原始 JSON:\n${json}\n字節數: ${bytes}`;
+      return;
+    }
+    /* (4) 顯示 Debug */
+    document.getElementById('orig-payload').textContent = `原始 JSON:\n${json}`;
+    const b64 = btoa(unescape(encodeURIComponent(json)));
+    document.getElementById('b64-payload').textContent = `Base64:\n${b64}`;
+
+    /* (5) 產生 QR Code */
+    qr.set({ value: b64 });
+  };
+
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = () => finalize({ ...data, productImage: reader.result });
+    reader.readAsDataURL(file);
+  } else {
+    finalize(data);
+  }
+});
+
+/*----------------------------------------------------
+ 2. 掃描 QR Code
+  · 使用 Html5QrcodeScanner (官方 UI)
+  · 自動選擇 Camera 2.0 → back → default
+-----------------------------------------------------*/
+
+/* (a) 中→英對照，掃描時轉中文欄位 */
+const labelMap = {
+  productName:'茶品名稱',teaVariety:'茶樹品種',teaCategory:'茶類分類',
+  processDescription:'製程說明',fermentationLevel:'發酵程度',roastLevel:'焙火程度',
+  harvestMethod:'採摘方式',harvestDate:'採摘日期',productionDate:'加工日期',expiryDate:'有效期限',
+  origin:'產地',altitude:'海拔 (m)',price:'價格 (NT$)',netWeight:'淨重 / 容量',
+  storage:'保存建議',manufacturer:'製造商 / 品牌',contactInfo:'聯絡資訊',
+  batchNumber:'批次編號',certification:'認證資訊',brewColor:'茶湯色澤',
+  aroma:'香氣特徵',flavor:'風味口感',brewAdvice:'沖泡建議',packaging:'包裝型態',
+  notes:'備註',productImage:'產品圖片'
+};
+
+/* (b) 預設鏡頭挑選：優先 Camera 2.0 */
+function defaultCamId(cams){
+  let cam = cams.find(c => c.id === '2');
+  if (cam) return cam.id;
+  cam = cams.find(c => /camera\s*2\s*0|2[,. ]0/i.test(c.label));
+  if (cam) return cam.id;
+  cam = cams.find(c => /back|rear|environment/i.test(c.label));
+  return cam ? cam.id : cams[0].id;
+}
+/* (c) 解碼：Base64 ➜ JSON；若非 Base64 直接 parse */
+function decodePayload(txt){
+  const isB64 = /^[A-Za-z0-9+/]+={0,2}$/.test(txt);
+  const raw = isB64 ? decodeURIComponent(escape(atob(txt))) : txt;
+  return JSON.parse(raw);
+}
+
+/* (d) 初始化掃描 UI，只在 tab 被點擊後執行一次 */
+let html5Scanner;
+document.querySelector('[data-bs-target="#scan"]').addEventListener('shown.bs.tab', () => {
+  if (html5Scanner) return; // 避免重複初始化
+
+  Html5Qrcode.getCameras().then(cams => {
+    if (!cams.length) { alert('未偵測到相機'); return; }
+
+    /* -- 建立 Scanner UI -- */
+    html5Scanner = new Html5QrcodeScanner('reader', {
+      qrbox: vw => { const s = Math.min(vw, 400); return { width:s, height:s }; },
+      fps: 12, aspectRatio: 1, disableFlip: true,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      defaultCameraId: defaultCamId(cams)
+    });
+
+    /* -- 掃描成功回呼 -- */
+    html5Scanner.render(decodedText => {
+      try{
+        const info = decodePayload(decodedText);
+        let html = '<h4 class="mb-3">茶葉資訊</h4><ul class="list-group mb-3">';
+        Object.entries(info).forEach(([k,v]) => {
+          const label = labelMap[k] || k;
+          if (k === 'productImage') {
+            html += `<li class="list-group-item"><strong>${label}：</strong><br><img src="${v}" class="img-fluid rounded shadow-sm mt-2"></li>`;
+          } else {
+            html += `<li class="list-group-item d-flex justify-content-between"><span>${label}</span><span>${v}</span></li>`;
+          }
+        });
+        html += '</ul>';
+        document.getElementById('result').innerHTML = html;
+      } catch (e) {
+        document.getElementById('result').innerHTML =
+          `<div class="alert alert-danger">資料解析錯誤：${e.message}</div>`;
+      }
+    });
+
+  }).catch(err => alert('相機初始化失敗：' + err));
+});
+</script>
+</body>
+</html>
