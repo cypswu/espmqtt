@@ -1,638 +1,1565 @@
 <!--
 ===============================================================================
-品茶 QR Code 管理系統 ‧ 程式說明文件  
-Version : 1.4.0 (2025-04-30)
-Author  : lung / ChatGPT-o3 collaborative draft  
-License : MIT (可自由改作，請保留版權與授權條款)
-
-▍一、功能總覽
-  1. ✏️  表單輸入 — 一次填寫 26 項茶葉資訊＋產品圖片（支援檔案或網址）。
-  2. 📷  QR Code 產生 — 將 JSON 壓縮成 Base64 後用 QRious 生成，
-         自動檢測容量 (≈ 2.9 KB 上限)，超限即提示精簡內容並 fallback。
-  3. 💾  QR Code 儲存 — 支援 File System Access API，
-         彈出「另存為」視窗；不支援時自動轉傳統下載。
-  4. 🔄  QR Code 載入 — 檔案選擇器解析 QR 圖片，先嘗試 decompressFromBase64()，
-         失敗時再 atob()，並正確回填表單欄位及同步更新 QR。
-  5. 🔍  QR Code 掃描 — 採用 Html5QrcodeScanner；
-         預設優先「Camera 2.0 → 後鏡頭 → 第一鏡頭」。
-         解析後以中文列表顯示所有欄位，並可預覽圖片。
-  6. 🎨  UI 美學 — 茶葉配色、優雅襯線字體、柔和陰影與進場動畫；
-         Debug 區可收合，方便開發與正式部署切換。
-  7. 🛠️  可維護性 — 表單欄位、fields 陣列、labelMap 對照及
-         CSS 色票集中管理；註解標示關鍵修改點。
-
-▍二、快速使用  
-  ① 雙擊 `index.html` 或部署於 HTTPS / localhost。  
-  ② 在「產生 QR Code」分頁輸入資料 → 按「產生 QR Code」。  
-  ③ 按「儲存 QR Code」或「載入 QR Code」按鈕執行操作。  
-  ④ 切換「掃描 QR Code」分頁 → 授權相機 → 對準 QR 即可查看結果。
-
-▍三、維護要點
-  • 新增或刪減欄位時，更新 `fields[]`、`labelMap{}` 及 `<form>`。  
-  • 壓縮/解壓邏輯集中於 `submit` 與 `load-btn` 事件。  
-  • 如需其它檔案類型，擴充 `showSaveFilePicker.types`。
-
-▍四、核心檔案結構
-  • HTML 表單            → id 必須列入 JS `fields[]`；  
-  • JS `fields[]`        → 控制輸出欄位；  
-  • JS `labelMap{}`      → 英文鍵 ↔ 中文欄位名；  
-  • CSS `:root` 變數     → 主題色票；  
-  • `defaultCamId()`     → 鏡頭優先設定；  
-  • `level:'M'`          → QR 容錯等級；
-
-▍五、版本紀錄
-  v1.4.0 (2025-04-30)
-    • feat: 完整 26 欄位表單；  
-    • feat: 支援產品圖片網址或檔案上傳；  
-    • bump: 版本自動更新為 v1.4.0  
-  v1.3.1 (2025-04-30)
-    • feat: 引入 lz-string 庫 → 支援 JSON 壓縮/解壓
-    • feat: 產生 QR 時 compressToBase64() → 逾容量再 fallback 至原 Base64
-    • fix: 容量檢查改對 最終 b64.length（Version 40-M 上限 2 953 bytes）
-    • fix: 載入流程先 decompressFromBase64() → 失敗再 atob()，並 正確回填表單欄位
-    • feat: File System Access API 儲存；不支援時自動轉傳統下載
-    • refactor: DOMContentLoaded 中統一初始化 QRious／事件綁定
-    • docs: 更新頁首說明至 v1.3.1，補充快速流程與維護要點
-  v1.2.0 (2025-04-29)
-    • 新增：QR Code 儲存功能（File System Access API + 傳統下載）
-    • 新增：QR Code 載入功能（檔案選擇器解析填表）
-    • 修正：提升載入可靠度，完善錯誤處理。
-    • 優化：更新使用說明與操作流程。
+  檔案名稱：index.html
+  專案名稱：品茶 QR Code 管理系統
+  版本號碼：v1.6.0　(2025-05-01)
+  Author  : lung / ChatGPT-o3 collaborative draft
+-------------------------------------------------------------------------------
+  功能摘要：
+    · 以單頁應用（SPA）形式，輸入茶葉資料 ➜ 產生 / 掃描 QR Code
+    · 支援 PNG 下載、 File System Access API 儲存、JSON 雲端模式
+    · 三分頁導覽：產生｜掃描｜使用說明；Tooltip 與即時驗證強化 UX
+-------------------------------------------------------------------------------
+  Authors & Tools :
+    ▸ Author   : cypswu
+    ▸ Generated : Gemini 2.5 Pro (initial scaffolding)
+    ▸ Modified  : ChatGPT-o3 (UX & code refinement)
+-------------------------------------------------------------------------------
+  主要相依：
+    ▸ Bootstrap 5.3.2　(CSS / JS bundle)
+    ▸ Bootstrap Icons 1.11
+    ▸ QRious 4.0.2
+    ▸ html5-qrcode 2.3.8
+-------------------------------------------------------------------------------
+  瀏覽器支援：
+    · Chrome / Edge 96+（完整支援 File System Access API）
+    · Firefox 95+（自動降級為 <a download> 下載）
+    · 行動瀏覽器均可操作掃描與檔案載入
+-------------------------------------------------------------------------------
+  版權宣告：MIT License
+-------------------------------------------------------------------------------
+  修訂紀錄：
+    ▸ v1.6.0 — 2025-05-01
+        - 新增「使用說明」分頁與快速導覽
+        - 加入 File System Access API / <a download> 混合下載方案
+        - 提升 Tooltip、Spinner 與全域訊息可用性
 ===============================================================================
 -->
-<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>品茶 QR Code 管理系統</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>品茶 QR Code 管理系統</title>
 
-<!-- -------------------------------------------------
- 字體與第三方函式庫
--------------------------------------------------- -->
-<!-- ADD: 預連線以加速字體載入 -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
 
-<!-- -------------------------------------------------
- 引入 QRious, Html5Qrcode 及 LZ-String（ULTIMATE UPDATE [1]）
--------------------------------------------------- -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js" defer></script>
-<script src="https://unpkg.com/html5-qrcode@2.3.7/html5-qrcode.min.js" defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js" defer></script> <!-- ULTIMATE: 壓縮支持 -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 
-<!-- -------------------------------------------------
- 自訂樣式：茶葉配色 ＋ 卡片陰影 ＋ 動畫
--------------------------------------------------- -->
-<style>
-  /*─────────────────────────────────────────────*/
-  /* 主題色票 (集中管理，便於一鍵換色) */
-  :root {
-    --tea-primary:       #5a7d2c;   /* 主色 */
-    --tea-primary-dark:  #496724;   /* 懸浮、互動色 */
-    --tea-secondary:     #d4c3a0;   /* 次色 / 分頁背景 */
-    --tea-bg:            #f9f7f2;   /* 頁面背景 */
-    --tea-text:          #3f3320;   /* 文字色 */
-    --bs-primary: var(--tea-primary);
-  }
+    <style>
+        :root {
+            --primary-color: #5a7d2c;
+            --secondary-color: #d4c3a0;
+            --background-gradient: linear-gradient(to bottom right, #f8f5f0, #e9e0d1); /* Slightly adjusted gradient */
+            --text-color: #333;
+            --card-border-color: #e0d8c7;
+            --accordion-button-bg: #f8f9fa;
+            --accordion-button-active-bg: #e7f0e1;
+        }
 
-  /*─────────────────────────────────────────────*/
-  /* 全域樣式 */
-  body {
-    font-family: 'Noto Serif TC', serif;
-    background: linear-gradient(135deg, var(--tea-bg), #fff);
-    color: var(--tea-text);
-    margin: 0; padding: 0;
-  }
-  h3, h4, h5 {
-    font-family: 'Playfair Display', serif;
-    margin-top: 1rem; margin-bottom: 1rem;
-  }
+        body {
+            font-family: 'Noto Serif TC', serif;
+            background: var(--background-gradient);
+            color: var(--text-color);
+            padding-bottom: 70px; /* Increased padding */
+        }
 
-  /*─────────────────────────────────────────────*/
-  /* 導覽列 */
-  .navbar {
-    background: var(--tea-primary);
-  }
-  .navbar-brand {
-    color: #fff !important;
-    font-weight: 600;
-    letter-spacing: 1px;
-    transition: opacity 0.3s;
-  }
-  .navbar-brand:hover {
-    opacity: 0.85;
-  }
+        h1, h2, h3, h4, h5, h6, .navbar-brand, .nav-link.active, .accordion-button:not(.collapsed) {
+            font-family: 'Playfair Display', serif;
+            color: var(--primary-color);
+        }
+        h1 {
+            font-weight: 700;
+        }
 
-  /*─────────────────────────────────────────────*/
-  /* 分頁標籤 */
-  .nav-tabs .nav-link {
-    border: 0;
-    font-weight: 600;
-    color: var(--tea-text);
-  }
-  .nav-tabs .nav-link.active {
-    background: var(--tea-secondary);
-    color: var(--tea-text);
-    border-radius: 0.5rem 0.5rem 0 0;
-  }
+        .nav-tabs {
+             border-bottom: 1px solid var(--card-border-color);
+        }
 
-  /*─────────────────────────────────────────────*/
-  /* 卡片 (Bootstrap .card 覆寫) */
-  .card {
-    border: 0;
-    border-radius: 1rem;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-    background: #fff;
-  }
+        .nav-tabs .nav-link {
+            color: var(--primary-color);
+            border: 1px solid transparent; /* Add transparent border for consistent height */
+             margin-bottom: -1px; /* Overlap border */
+             border-top-left-radius: 0.375rem;
+             border-top-right-radius: 0.375rem;
+             padding: 0.75rem 1.25rem; /* Slightly larger padding */
+        }
 
-  /*─────────────────────────────────────────────*/
-  /* 按鈕  */
-  .btn-primary {
-    background: var(--tea-primary);
-    border-color: var(--tea-primary);
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-  .btn-primary:hover {
-    background: var(--tea-primary-dark);
-    border-color: var(--tea-primary-dark);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.12);
-  }
+        .nav-tabs .nav-link.active {
+            background-color: #fff; /* Make active tab background white */
+            border-color: var(--card-border-color) var(--card-border-color) #fff; /* Match card border */
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+         .nav-tabs .nav-link:hover:not(.active) {
+             border-color: transparent transparent var(--card-border-color) transparent;
+             background-color: #f8f5f0; /* Slight hover effect */
+         }
 
-  /*─────────────────────────────────────────────*/
-  /* QR Canvas */
-  #qr-code {
-    display: block;
-    margin: 2rem auto;
-    border: 8px solid #fff;
-    border-radius: 0.75rem;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  }
+        .tab-content {
+            padding-top: 1.5rem; /* Add space below tabs */
+        }
 
-  /*─────────────────────────────────────────────*/
-  /* Debug 區塊 */
-  .debug-wrapper summary {
-    cursor: pointer;
-    font-weight: 600;
-    color: var(--tea-primary-dark);
-  }
-  pre.debug {
-    background: #fff;
-    border: 1px solid #e6e2d9;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
-    max-height: 200px;
-    overflow: auto;
-    padding: 0.75rem;
-  }
+        .accordion-item {
+            border: 1px solid var(--card-border-color);
+            margin-bottom: 0.5rem; /* Add space between items */
+            border-radius: 0.375rem; /* Rounded corners for items */
+            overflow: hidden; /* Ensure children conform to rounded corners */
+        }
+        .accordion-item:first-of-type {
+             border-top-left-radius: 0.375rem;
+             border-top-right-radius: 0.375rem;
+        }
+         .accordion-item:last-of-type {
+             border-bottom-left-radius: 0.375rem;
+             border-bottom-right-radius: 0.375rem;
+             margin-bottom: 0;
+         }
 
-  /*─────────────────────────────────────────────*/
-  /* 進場動畫 (分頁切換卡片) */
-  @keyframes fadeInUp {
-    0% {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    100% {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  .tab-pane.fade.show.active > .card {
-    animation: fadeInUp 0.5s ease-out;
-  }
-</style>
+        .accordion-button {
+            background-color: var(--accordion-button-bg);
+            color: var(--text-color);
+            font-weight: bold; /* Make section titles bolder */
+            border-bottom: 1px solid var(--card-border-color); /* Separator line */
+        }
+         .accordion-item:last-of-type .accordion-button.collapsed {
+             border-bottom: 0; /* Remove border if last item and collapsed */
+         }
+
+        .accordion-button:not(.collapsed) {
+            background-color: var(--accordion-button-active-bg);
+            color: var(--primary-color); /* Use primary color when active */
+            box-shadow: inset 0 -1px 0 var(--card-border-color); /* Keep bottom border */
+        }
+
+        .accordion-button:focus {
+            box-shadow: 0 0 0 0.2rem rgba(90, 125, 44, 0.25); /* Primary color focus */
+            z-index: 3; /* Ensure focus outline is visible */
+        }
+        .accordion-body {
+            background-color: #fff; /* White background for content */
+        }
+
+        .btn {
+             border-radius: 0.375rem;
+             padding: 0.5rem 1rem; /* Consistent padding */
+             font-weight: 500; /* Slightly bolder text */
+             transition: all 0.2s ease-in-out; /* Smoother transitions */
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background-color: #486423;
+            border-color: #486423;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background-color: #c3b28f;
+            border-color: #c3b28f;
+            transform: translateY(-1px);
+             box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        }
+         .btn-success { /* Style save button */
+             background-color: #28a745;
+             border-color: #28a745;
+         }
+         .btn-success:hover {
+             background-color: #218838;
+             border-color: #1e7e34;
+             transform: translateY(-1px);
+             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+         }
+         .btn-outline-secondary {
+             color: var(--primary-color);
+             border-color: var(--primary-color);
+         }
+         .btn-outline-secondary:hover {
+             background-color: var(--accordion-button-active-bg);
+             color: var(--primary-color);
+         }
+
+
+        .card {
+            border: 1px solid var(--card-border-color);
+            border-radius: 0.5rem;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.08); /* Slightly softer shadow */
+            background-color: #fff; /* Ensure card background is white */
+        }
+        .card-body {
+            padding: 1.5rem; /* More padding in cards */
+        }
+
+        .form-control, .form-select {
+            border-radius: 0.375rem;
+            border: 1px solid #ced4da;
+        }
+        .form-control:focus, .form-select:focus {
+             border-color: #a8c589; /* Primary color related focus */
+             box-shadow: 0 0 0 0.2rem rgba(90, 125, 44, 0.25);
+        }
+        .form-label {
+            margin-bottom: 0.5rem;
+            font-weight: 500; /* Slightly bolder labels */
+        }
+
+        #qrCodeResult img,
+        #qrCodeResult canvas {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid var(--card-border-color);
+            border-radius: 0.375rem;
+            margin-top: 1rem;
+            background-color: white; /* Ensure QR code background is white */
+            padding: 10px; /* Add padding around QR code */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        #reader {
+            width: 100%; /* Make reader take full width of container */
+            max-width: 400px; /* Limit max width */
+            margin: 1rem auto; /* Center and add margin */
+            border: 2px dashed var(--secondary-color); /* Dashed border */
+            border-radius: 0.5rem;
+            overflow: hidden; /* Ensure rounded corners */
+            background-color: #f8f9fa; /* Light background for reader area */
+        }
+        #reader video { /* Style the video element if possible */
+             display: block;
+             width: 100%;
+             height: auto;
+        }
+
+
+        .list-group-item {
+            word-break: break-word; /* Avoid long string overflow */
+            padding: 0.75rem 1.25rem;
+            border-color: var(--card-border-color); /* Match card border */
+            background-color: #fff; /* Ensure white background */
+        }
+        .list-group-item:first-child {
+             border-top-left-radius: 0; /* Remove radius if inside card */
+             border-top-right-radius: 0;
+        }
+        .list-group-item:last-child {
+             border-bottom-left-radius: 0;
+             border-bottom-right-radius: 0;
+        }
+
+        .list-group-item strong {
+             color: var(--primary-color);
+             margin-right: 0.5em; /* Space after label */
+        }
+
+        .list-group-item img {
+            max-width: 100%;
+            height: auto;
+            max-height: 250px; /* Increased max height */
+            margin-top: 8px;
+            border-radius: 0.375rem;
+            border: 1px solid var(--card-border-color);
+            display: block; /* Ensure image is block level */
+        }
+        .list-group-item pre { /* Style for textarea display */
+            white-space: pre-wrap;
+            margin: 0;
+            font-family: inherit;
+            font-size: inherit;
+            background-color: #f8f9fa; /* Slight background for pre */
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            margin-top: 5px;
+        }
+
+        /* Hide default file input */
+        input[type="file"] {
+            display: none;
+        }
+        /* Custom file upload button style */
+        .custom-file-upload {
+            border: 1px solid var(--primary-color);
+            display: inline-block;
+            padding: 0.375rem 0.75rem; /* Match form control padding */
+            cursor: pointer;
+            background-color: #fff;
+            color: var(--primary-color);
+            border-radius: 0.375rem;
+            transition: background-color 0.2s ease;
+            margin-right: 5px; /* Space next to filename */
+        }
+        .custom-file-upload:hover {
+            background-color: var(--accordion-button-active-bg);
+        }
+        .file-name-display {
+            font-style: italic;
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        #productImageFilePreview img {
+             max-width: 100%; /* Allow image to scale */
+             max-height: 200px;
+             margin-top: 10px;
+             border-radius: 0.375rem;
+             border: 1px solid var(--card-border-color);
+        }
+        .alert {
+            border-radius: 0.375rem;
+            padding: 1rem 1.25rem;
+        }
+        .debug-info {
+            font-size: 0.85em;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+    </style>
 </head>
 <body>
-  <main>
-    <!-- 導覽列 -->
-    <nav class="navbar shadow-sm">
-      <div class="container">
-        <a class="navbar-brand" href="#">品茶 QR Code 管理系統</a>
-      </div>
-    </nav>
+    <div class="container mt-4 mb-5">
+        <header class="text-center mb-5">
+            <h1 class="display-5">品茶 QR Code 管理系統</h1>
+        </header>
 
-    <div class="container my-5">
-      <!-- 分頁選單 -->
-      <ul class="nav nav-tabs">
-        <li class="nav-item">
-          <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#gen">
-            產生 QR Code
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#scan">
-            掃描 QR Code
-          </button>
-        </li>
-      </ul>
+        <ul class="nav nav-tabs mb-4" id="teaTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="generate-tab" data-bs-toggle="tab" data-bs-target="#generateTabPane" type="button" role="tab" aria-controls="generateTabPane" aria-selected="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-qr-code-scan me-1" viewBox="0 0 16 16"><path d="M0 .5A.5.5 0 0 1 .5 0h3a.5.5 0 0 1 0 1H1v2.5a.5.5 0 0 1-1 0zm12 0a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V1h-2.5a.5.5 0 0 1-.5-.5zM.5 12a.5.5 0 0 1 .5.5V15h2.5a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5v-3a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1 0-1H15v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7 2H2v5h5V2ZM3 3h3v3H3V3Zm2 8H4v1h1v-1Z"/><path d="M7 9H2v5h5V9Zm-4 1h3v3H3v-3Zm8-6h1v1h-1V4Z"/><path d="M9 2h5v5H9V2Zm1 1v3h3V3h-3ZM8 8v2h1v1H8v1h2v-2h1v2h1v-1h2v-1h-3V8H8Zm2 2H9V9h1v1Zm4 2h-1v1h-2v1h3v-2Zm-4 2v-1H8v1h2Z"/><path d="M12 9h2V8h-2v1Z"/></svg>
+                    產生 QR Code
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="scan-tab" data-bs-toggle="tab" data-bs-target="#scanTabPane" type="button" role="tab" aria-controls="scanTabPane" aria-selected="false">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-camera-fill me-1" viewBox="0 0 16 16"> <path d="M10.5 8.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0"/> <path d="M2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4zm.5 2a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1m9-1a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0"/> </svg>
+                    掃描 QR Code
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="help-tab" data-bs-toggle="tab" data-bs-target="#helpTabPane" type="button" role="tab" aria-controls="helpTabPane" aria-selected="false">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-info-circle me-1" viewBox="0 0 16 16"> <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1m0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2m.93 4.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.194.897c-.194.897.105 1.319.808 1.319.545 0 .934-.252 1.019-.598l.088-.416c.063-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287.082-.38-.45-.083c-.294-.07-.352-.176-.288-.469l.194-.897c.194-.897-.105-1.319-.808-1.319-.545 0-.934.252-1.019.598l-.088.416c-.063.293-.006.399.287.47l.451.081-.082.381z"/> <circle cx="8" cy="4.5" r="1"/> </svg>
+                    使用說明
+                </button>
+            </li>
+        </ul>
 
-      <div class="tab-content py-4">
-        <!-- ► 產生 QR Code 分頁 -->
-        <div class="tab-pane fade show active" id="gen">
-          <div class="card p-4">
-            <h3 class="mb-3">茶葉資訊輸入 (共 26 項)</h3>
-            <form id="teaForm">
-              <div class="row g-3">
-                <!-- 1–5 -->
-                <div class="col-md-6">
-                  <label for="teaName" class="form-label">1. 茶葉名稱</label>
-                  <input id="teaName" class="form-control" type="text" placeholder="例如：日月潭紅茶" required>
-                </div>
-                <div class="col-md-6">
-                  <label for="teaType" class="form-label">2. 茶葉種類</label>
-                  <input id="teaType" class="form-control" type="text" placeholder="例如：紅茶">
-                </div>
-                <div class="col-md-6">
-                  <label for="originRegion" class="form-label">3. 產區</label>
-                  <input id="originRegion" class="form-control" type="text" placeholder="例如：南投縣魚池鄉">
-                </div>
-                <div class="col-md-6">
-                  <label for="producer" class="form-label">4. 生產者</label>
-                  <input id="producer" class="form-control" type="text" placeholder="例如：茶山農場">
-                </div>
-                <div class="col-md-4">
-                  <label for="harvestSeason" class="form-label">5. 採收季節</label>
-                  <input id="harvestSeason" class="form-control" type="text" placeholder="例如：春季">
-                </div>
+        <div class="tab-content" id="teaTabsContent">
+            <div class="tab-pane fade show active" id="generateTabPane" role="tabpanel" aria-labelledby="generate-tab" tabindex="0">
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <form id="teaForm">
+                            <div class="accordion" id="teaFormAccordion">
+                                </div>
 
-                <!-- 6–10 -->
-                <div class="col-md-4">
-                  <label for="harvestDate" class="form-label">6. 採摘日期</label>
-                  <input id="harvestDate" class="form-control" type="date">
-                </div>
-                <div class="col-md-4">
-                  <label for="processingMethod" class="form-label">7. 處理方式</label>
-                  <input id="processingMethod" class="form-control" type="text" placeholder="例如：烘焙">
-                </div>
-                <div class="col-md-4">
-                  <label for="grade" class="form-label">8. 等級</label>
-                  <input id="grade" class="form-control" type="text" placeholder="例如：特級">
-                </div>
-                <div class="col-md-4">
-                  <label for="batchNo" class="form-label">9. 批號</label>
-                  <input id="batchNo" class="form-control" type="text" placeholder="例如：202504A01">
-                </div>
-                <div class="col-md-4">
-                  <label for="packagingDate" class="form-label">10. 包裝日期</label>
-                  <input id="packagingDate" class="form-control" type="date">
+                            <div class="d-flex justify-content-between align-items-center mt-4 flex-wrap gap-3">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-circle-fill me-1" viewBox="0 0 16 16"> <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M8.5 4.5a.5.5 0 0 0-1 0v3h-3a.5.5 0 0 0 0 1h3v3a.5.5 0 0 0 1 0v-3h3a.5.5 0 0 0 0-1h-3z"/> </svg>
+                                    產生 QR Code
+                                </button>
+                                <div>
+                                    <label for="loadQrInput" class="btn btn-secondary custom-file-upload">
+                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-upload me-1" viewBox="0 0 16 16"> <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/> <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708z"/> </svg>
+                                        載入 QR Code
+                                    </label>
+                                    <input type="file" id="loadQrInput" accept="image/png, image/jpeg, image/gif">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
                 </div>
 
-                <!-- 11–15 -->
-                <div class="col-md-6">
-                  <label for="netWeight" class="form-label">11. 淨重 (g)</label>
-                  <input id="netWeight" class="form-control" type="number" step="0.01" placeholder="例如：50">
-                </div>
-                <div class="col-md-6">
-                  <label for="moistureContent" class="form-label">12. 水分含量 (%)</label>
-                  <input id="moistureContent" class="form-control" type="number" step="0.1" placeholder="例如：5.5">
-                </div>
-                <div class="col-md-6">
-                  <label for="aromaProfile" class="form-label">13. 香氣</label>
-                  <input id="aromaProfile" class="form-control" type="text" placeholder="例如：花香、果香">
-                </div>
-                <div class="col-md-6">
-                  <label for="flavorNotes" class="form-label">14. 風味描述</label>
-                  <input id="flavorNotes" class="form-control" type="text" placeholder="例如：甘醇回甘">
-                </div>
-                <div class="col-md-6">
-                  <label for="infusionCount" class="form-label">15. 建議沖泡次數</label>
-                  <input id="infusionCount" class="form-control" type="number" placeholder="例如：3">
+                <div id="qrCodeResult" class="mt-4 text-center" style="display: none;">
+                     <div class="card">
+                         <div class="card-body">
+                             <h3 class="h5 mb-3">產生的 QR Code:</h3>
+                             <canvas id="qrCanvas" width="420" height="420"></canvas>
+                             <div id="qrCodeImageContainer"></div>
+                             <button id="saveQrButton" class="btn btn-success mt-3">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-download me-1" viewBox="0 0 16 16"> <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/> <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708z"/> </svg>
+                                 儲存 QR Code
+                             </button>
+                         </div>
+                     </div>
                 </div>
 
-                <!-- 16–20 -->
-                <div class="col-md-6">
-                  <label for="recommendedRatio" class="form-label">16. 建議投茶量 (g/L)</label>
-                  <input id="recommendedRatio" class="form-control" type="number" step="0.1" placeholder="例如：5">
-                </div>
-                <div class="col-md-4">
-                  <label for="waterTemp" class="form-label">17. 水溫 (℃)</label>
-                  <input id="waterTemp" class="form-control" type="number" placeholder="例如：90">
-                </div>
-                <div class="col-md-4">
-                  <label for="brewTime" class="form-label">18. 沖泡時間 (秒)</label>
-                  <input id="brewTime" class="form-control" type="number" placeholder="例如：30">
-                </div>
-                <div class="col-md-4">
-                  <label for="servingSuggestion" class="form-label">19. 建議飲用方式</label>
-                  <input id="servingSuggestion" class="form-control" type="text" placeholder="例如：熱飲、溫飲">
-                </div>
-                <div class="col-md-6">
-                  <label for="caffeineLevel" class="form-label">20. 咖啡因含量</label>
-                  <input id="caffeineLevel" class="form-control" type="text" placeholder="例如：中等">
+                <div id="cloudModeSection" class="mt-4 card" style="display: none;">
+                    <div class="card-body">
+                        <h3 class="h5 text-warning mb-3">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-exclamation-triangle-fill me-1" viewBox="0 0 16 16"> <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5m.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/> </svg>
+                            資料量過大，請使用雲端模式
+                        </h3>
+                        <p class="mb-2">壓縮後的資料大小超過 QR Code 容量上限 (<span id="compressedSizeInfo"></span> bytes)。</p>
+                        <p>請將下方 JSON 資料複製並儲存到您選擇的雲端空間（例如：<a href="https://gist.github.com/" target="_blank" rel="noopener noreferrer">GitHub Gist</a>, <a href="https://pastebin.com/" target="_blank" rel="noopener noreferrer">Pastebin</a> 等，**請確保設為公開或擁有連結者可讀**），然後將產生的**原始資料連結 (Raw URL)** 貼回下方。</p>
+                        <div class="mb-3">
+                            <label for="jsonDataDisplay" class="form-label">完整 JSON 資料:</label>
+                            <textarea id="jsonDataDisplay" class="form-control" rows="6" readonly></textarea>
+                            <button id="copyJsonButton" class="btn btn-sm btn-outline-secondary mt-2">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-clipboard me-1" viewBox="0 0 16 16"> <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1z"/> <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0z"/> </svg>
+                                複製 JSON
+                            </button>
+                        </div>
+                        <div class="mb-3">
+                            <label for="cloudUrlInput" class="form-label">貼上您的雲端資料連結 (Raw URL):</label>
+                            <input type="url" id="cloudUrlInput" class="form-control" placeholder="例如：https://gist.githubusercontent.com/.../raw/...">
+                        </div>
+                        <button id="generateLinkQrButton" class="btn btn-primary">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-link-45deg me-1" viewBox="0 0 16 16"> <path d="M4.715 6.542 3.343 7.914a3 3 0 1 0 4.243 4.243l1.828-1.829A3 3 0 0 0 8.586 5.5L8 6.086a1 1 0 0 0-.154.199 2 2 0 0 1 .861 3.337L6.88 11.45a2 2 0 1 1-2.83-2.83l.793-.792a4 4 0 0 1-.128-1.287z"/> <path d="M6.586 4.672A3 3 0 0 0 7.414 9.5l.775-.776a2 2 0 0 1-.896-3.346L9.12 3.55a2 2 0 1 1 2.83 2.83l-.793.792c.112.42.155.855.128 1.287l1.372-1.372a3 3 0 1 0-4.243-4.243z"/> </svg>
+                            使用連結產生 QR Code
+                        </button>
+                    </div>
                 </div>
 
-                <!-- 21–26 (圖片支援 URL 或 檔案) -->
-                <div class="col-md-6">
-                  <label for="pHValue" class="form-label">21. pH 值</label>
-                  <input id="pHValue" class="form-control" type="number" step="0.01" placeholder="例如：6.5">
-                </div>
-                <div class="col-md-6">
-                  <label for="storage" class="form-label">22. 保存方式</label>
-                  <input id="storage" class="form-control" type="text" placeholder="例如：陰涼乾燥處">
-                </div>
-                <div class="col-md-6">
-                  <label for="shelfLife" class="form-label">23. 賞味期限</label>
-                  <input id="shelfLife" class="form-control" type="date">
-                </div>
-                <div class="col-md-6">
-                  <label for="certification" class="form-label">24. 認證</label>
-                  <input id="certification" class="form-control" type="text" placeholder="例如：有機、GAP">
-                </div>
-                <div class="col-md-6">
-                  <label for="packagingType" class="form-label">25. 包裝方式</label>
-                  <input id="packagingType" class="form-control" type="text" placeholder="例如：鋁箔袋">
-                </div>
-                <div class="col-md-12">
-                  <label for="productImageUrl" class="form-label">26. 產品圖片 URL</label>
-                  <input id="productImageUrl" class="form-control" type="url" placeholder="例如：https://例子.com/tea.jpg">
-                </div>
-                <div class="col-md-12">
-                  <label for="productImageFile" class="form-label">產品圖片上傳</label>
-                  <input id="productImageFile" class="form-control" type="file" accept="image/*">
-                </div>
-              </div>
-
-              <button type="submit" class="btn btn-primary px-4 mt-4">
-                產生 QR Code
-              </button>
-            </form>
-
-            <!-- QR 顯示與操作按鈕 -->
-            <div class="text-center my-4">
-              <canvas id="qr-code" width="420" height="420"></canvas>
-              <div id="qr-reader-file" style="display:none;"></div>
-              <div class="mt-4">
-                <button id="save-btn" class="btn btn-secondary mx-2">儲存 QR Code</button>
-                <button id="load-btn" class="btn btn-secondary">載入 QR Code</button>
-              </div>
+                <div id="generateMessage" class="alert mt-4 d-none" role="alert"></div>
             </div>
 
-            <!-- Debug 資訊 -->
-            <details class="debug-wrapper">
-              <summary>Debug 資訊 ↡</summary>
-              <pre id="orig-payload" class="debug mt-2"></pre>
-              <pre id="b64-payload" class="debug mt-2"></pre>
-            </details>
-          </div>
-        </div>
+            <div class="tab-pane fade" id="scanTabPane" role="tabpanel" aria-labelledby="scan-tab" tabindex="0">
+                 <div class="card mb-4">
+                     <div class="card-body text-center">
+                        <h3 class="h5 mb-3">掃描 QR Code</h3>
+                        <p class="text-muted">將 QR Code 置於下方掃描區域內</p>
+                        <div id="reader"></div>
+                         <div id="scanMessage" class="alert alert-info mt-3 d-none" role="alert">
+                            正在請求相機權限...
+                        </div>
+                     </div>
+                 </div>
 
-        <!-- ► 掃描 QR Code 分頁 -->
-        <div class="tab-pane fade" id="scan">
-          <div class="card p-4">
-            <h3 class="mb-3">QR Code 掃描</h3>
-            <p class="text-muted">點擊後授權相機，對準 QR 即可。</p>
-            <div id="reader" style="width:100%;max-width:600px;margin:auto;"></div>
-            <hr>
-            <div id="result"></div>
-          </div>
+                 <div id="scanResult" class="mt-4 card" style="display: none;">
+                     <div class="card-body">
+                        <h3 class="h5 mb-3">掃描結果:</h3>
+                        <ul id="scanResultList" class="list-group list-group-flush">
+                            </ul>
+                     </div>
+                 </div>
+
+            </div>
+            
+            <!-- 使用說明頁籤內容 -->
+            <div class="tab-pane fade" id="helpTabPane" role="tabpanel" aria-labelledby="help-tab" tabindex="0">
+                <!-- ===== 使用說明（Begin） ===== -->
+                <div class="card">
+                    <div class="card-body">
+
+                        <!-- ⭕ 1. 快速導覽 -->
+                        <h2 class="h5 mb-3">
+                            <i class="bi bi-compass me-1"></i> 快速導覽 ‧ 三步驟
+                        </h2>
+                        <ol class="ps-3 mb-4">
+                            <li><strong>輸入資料</strong>：切到 <em>產生 QR Code</em> 分頁，填入茶葉資訊後點 <kbd>產生 QR Code</kbd>。</li>
+                            <li><strong>預覽檢查</strong>：系統即時顯示 QR 圖像與 JSON 壓縮字串；如需修改，可直接返回編輯。</li>
+                            <li><strong>下載 / 還原</strong>：按 <kbd>儲存 QR Code</kbd> 下載 PNG；或利用 <kbd>載入 QR Code</kbd> / <em>掃描 QR Code</em> 分頁隨時回填。</li>
+                        </ol>
+
+                        <!-- 💡 2. 進階技巧 -->
+                        <h2 class="h5 mb-3">
+                            <i class="bi bi-lightbulb me-1"></i> 進階技巧
+                        </h2>
+                        <ul class="ps-3 mb-4">
+                            <li>若資料量過大，系統會自動啟用 <strong>雲端模式</strong>，並引導你複製 JSON-URL 以縮短 QR 容量。</li>
+                            <li>下載時可自訂檔名，方便依茶款或批次歸檔。</li>
+                            <li>桌機與手機皆可操作；手機可直接用相機掃描 QR 還原資料。</li>
+                        </ul>
+
+                        <!-- ❓ 3. 常見問題 -->
+                        <h2 class="h5 mb-2">
+                            <i class="bi bi-question-circle me-1"></i> 常見問題
+                        </h2>
+                        <p class="mb-1"><strong>Q1 ：掃描不到 QR？</strong></p>
+                        <p>A ：請確認影像清晰、光線充足，並保持鏡頭對焦於整個 QR。</p>
+
+                        <p class="mb-1"><strong>Q2 ：QR 內是亂碼，看不懂？</strong></p>
+                        <p>A ：那是系統自動壓縮的字串，直接掃描或載入即可解析，不需人工閱讀。</p>
+
+                        <p class="mb-1"><strong>Q3 ：想重新編輯資料？</strong></p>
+                        <p>A ：先載入既有 QR ➜ 修改表單 ➜ 再點 <kbd>產生 QR Code</kbd> 即可覆蓋舊檔。</p>
+
+                    </div>
+                </div>
+                <!-- ===== 使用說明（End） ===== -->
+            </div>
+            
         </div>
-      </div>
     </div>
-  </main>
 
-<!-- -------------------------------------------------
- JavaScript 區：產生 + 掃描
--------------------------------------------------- -->
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    // ──────────────────────────────────────────────────
-    // 1. 初始化 QRious
-    // ──────────────────────────────────────────────────
-    const qr = new QRious({
-      element: document.getElementById('qr-code'),
-      size: 420,
-      level: 'M'  // QR 容錯等級 M (≈3KB 容量)
-    });
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
-    // ──────────────────────────────────────────────────
-    // 2. 欄位 & 標籤對應
-    // ──────────────────────────────────────────────────
-    const fields = [
-      'teaName','teaType','originRegion','producer','harvestSeason',
-      'harvestDate','processingMethod','grade','batchNo','packagingDate',
-      'netWeight','moistureContent','aromaProfile','flavorNotes','infusionCount',
-      'recommendedRatio','waterTemp','brewTime','servingSuggestion','caffeineLevel',
-      'pHValue','storage','shelfLife','certification','packagingType'
-    ];
-    const labelMap = {
-      teaName: '茶葉名稱', teaType: '茶葉種類', originRegion: '產區',
-      producer: '生產者', harvestSeason: '採收季節', harvestDate: '採摘日期',
-      processingMethod: '處理方式', grade: '等級', batchNo: '批號',
-      packagingDate: '包裝日期', netWeight: '淨重', moistureContent: '水分含量',
-      aromaProfile: '香氣', flavorNotes: '風味描述', infusionCount: '建議沖泡次數',
-      recommendedRatio: '建議投茶量', waterTemp: '水溫', brewTime: '沖泡時間',
-      servingSuggestion: '建議飲用方式', caffeineLevel: '咖啡因含量',
-      pHValue: 'pH 值', storage: '保存方式', shelfLife: '賞味期限',
-      certification: '認證', packagingType: '包裝方式', productImage: '產品圖片'
-    };
+    <script>
+        // --- Configuration ---
+        const fieldConfig = [
+            // 基本資訊 (Basic)
+            { id: 'teaName', label: '品名', section: 'basic', placeholder: '例如：阿里山金萱', type: 'text', col: 'col-md-6' },
+            { id: 'teaType', label: '茶類', section: 'basic', placeholder: '例如：烏龍茶', type: 'text', col: 'col-md-6' },
+            { id: 'cultivar', label: '品種', section: 'basic', placeholder: '例如：金萱 (台茶12號)', type: 'text', col: 'col-md-6' },
+            { id: 'originRegion', label: '產地', section: 'basic', placeholder: '例如：台灣嘉義縣阿里山鄉', type: 'text', col: 'col-md-6' },
+            { id: 'producer', label: '生產者/茶廠', section: 'basic', placeholder: '例如：XX茶業', type: 'text', col: 'col-md-6' },
+            { id: 'altitude', label: '海拔 (公尺)', section: 'basic', placeholder: '例如：1200', type: 'number', col: 'col-md-6' },
+            { id: 'harvestDate', label: '採收日期', section: 'basic', placeholder: '', type: 'date', col: 'col-md-6' },
+            { id: 'harvestSeason', label: '採收季節', section: 'basic', placeholder: '例如：春季', type: 'text', col: 'col-md-6' },
+            // 常用資訊 (Common)
+            { id: 'grade', label: '等級', section: 'common', placeholder: '例如：特級', type: 'text', col: 'col-md-4' },
+            { id: 'batchNo', label: '批號', section: 'common', placeholder: '例如：202405A', type: 'text', col: 'col-md-4' },
+            { id: 'netWeight', label: '淨重 (克)', section: 'common', placeholder: '例如：150', type: 'number', col: 'col-md-4' },
+            { id: 'teaMaster', label: '製茶師', section: 'common', placeholder: '例如：王小明', type: 'text', col: 'col-md-4' },
+            { id: 'packagingDate', label: '包裝日期', section: 'common', placeholder: '', type: 'date', col: 'col-md-4' },
+            { id: 'shelfLife', label: '保存期限', section: 'common', placeholder: '例如：2年', type: 'text', col: 'col-md-4' },
+            { id: 'flavorNotes', label: '風味描述', section: 'common', placeholder: '例如：帶有奶香、花香，口感滑順', type: 'textarea', col: 'col-md-6' },
+            { id: 'brewGuide', label: '沖泡建議', section: 'common', placeholder: '例如：水溫95°C，第一泡60秒...', type: 'textarea', col: 'col-md-6' },
+            { id: 'storagePack', label: '保存方式/包裝', section: 'common', placeholder: '例如：真空包裝，存放於陰涼乾燥處', type: 'text', col: 'col-md-6' },
+            { id: 'certification', label: '認證標章', section: 'common', placeholder: '例如：SGS 認證、有機認證', type: 'text', col: 'col-md-6' },
+            { id: 'priceTWD', label: '參考售價 (TWD)', section: 'common', placeholder: '例如：800', type: 'number', col: 'col-md-4' },
+            { id: 'barcode', label: '商品條碼', section: 'common', placeholder: '例如：471xxxxxxxxxx', type: 'text', col: 'col-md-4' },
+            { id: 'productImageUrl', label: '商品圖片網址', section: 'common', placeholder: 'https://...', type: 'url', col: 'col-md-12' },
+            { id: 'productImageFile', label: '上傳商品圖片', section: 'common', type: 'file', col: 'col-md-6' }, // Keep col-md-6 for layout
+             { id: 'productImageFilePreview', label: '', section: 'common', type: 'preview', col: 'col-md-6' }, // Placeholder for preview area positioning
+            { id: 'notes', label: '備註', section: 'common', placeholder: '其他補充資訊', type: 'textarea', col: 'col-md-12' },
+            // 進階資訊 (Advance)
+            { id: 'gardenArea', label: '茶園面積', section: 'advance', placeholder: '例如：5公頃', type: 'text', col: 'col-md-4' },
+            { id: 'farmingMethod', label: '耕作方式', section: 'advance', placeholder: '例如：有機農法、自然農法', type: 'text', col: 'col-md-4' },
+            { id: 'fermentation', label: '發酵程度 (%)', section: 'advance', placeholder: '例如：20', type: 'number', col: 'col-md-4' },
+            { id: 'roastLevel', label: '焙火程度', section: 'advance', placeholder: '例如：輕焙火、中焙火', type: 'text', col: 'col-md-4' },
+            { id: 'treeAge', label: '茶樹樹齡', section: 'advance', placeholder: '例如：30年', type: 'text', col: 'col-md-4' },
+            { id: 'liquorColor', label: '茶湯色澤', section: 'advance', placeholder: '例如：金黃明亮', type: 'text', col: 'col-md-4' },
+            { id: 'leafAppearance', label: '葉底外觀', section: 'advance', placeholder: '例如：葉片完整，葉緣鑲紅邊', type: 'text', col: 'col-md-6' },
+            { id: 'climate', label: '氣候條件', section: 'advance', placeholder: '例如：雲霧繚繞，日夜溫差大', type: 'text', col: 'col-md-6' },
+            { id: 'clarity', label: '茶湯澄清度', section: 'advance', placeholder: '例如：清澈透亮', type: 'text', col: 'col-md-4' },
+            { id: 'brokenRate', label: '碎末率 (%)', section: 'advance', placeholder: '例如：< 5', type: 'number', col: 'col-md-4' },
+            { id: 'moisture', label: '含水量 (%)', section: 'advance', placeholder: '例如：< 7', type: 'number', col: 'col-md-4' },
+            { id: 'phValue', label: 'pH值', section: 'advance', placeholder: '例如：5.5', type: 'number', step: '0.1', col: 'col-md-6' },
+            { id: 'caffeine', label: '咖啡因含量', section: 'advance', placeholder: '例如：中等', type: 'text', col: 'col-md-6' },
+            // 專家資訊 (Expert)
+            { id: 'pesticideReport', label: '農藥檢測報告', section: 'expert', placeholder: '例如：SGS 檢測連結或摘要', type: 'textarea', col: 'col-md-12' },
+            { id: 'equipment', label: '使用設備', section: 'expert', placeholder: '例如：特殊製茶設備說明', type: 'textarea', col: 'col-md-12' },
+            { id: 'awards', label: '得獎紀錄', section: 'expert', placeholder: '例如：2023年 XX 比賽金獎', type: 'textarea', col: 'col-md-12' },
+        ];
 
-    // ──────────────────────────────────────────────────
-    // 3. 鏡頭預設
-    // ──────────────────────────────────────────────────
-    function defaultCamId(cameras) {
-      // 優先選擇標籤含 rear/back/後 的鏡頭
-      const rear = cameras.find(c => /rear|back|後/.test(c.label));
-      return (rear || cameras[0]).id;
-    }
+        const sections = {
+            basic: { title: '基本資訊', fields: [], element: null },
+            common: { title: '常用資訊', fields: [], element: null },
+            advance: { title: '進階資訊', fields: [], element: null },
+            expert: { title: '專家資訊', fields: [], element: null },
+        };
 
-    // ──────────────────────────────────────────────────
-    // 4. 產生 QR Code（表單 submit）
-    // ──────────────────────────────────────────────────
-    document.getElementById('teaForm').addEventListener('submit', e => {
-      e.preventDefault();
+        const MAX_QR_LENGTH = 2953; // QR Code Version 40, Level M max bytes (approx for alphanumeric)
 
-      // 收集表單資料
-      const data = {};
-      fields.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && el.value.trim()) data[id] = el.value.trim();
-      });
+        // --- DOM Elements ---
+        const teaForm = document.getElementById('teaForm');
+        const teaFormAccordion = document.getElementById('teaFormAccordion');
+        const qrCodeResultDiv = document.getElementById('qrCodeResult');
+        const qrCanvas = document.getElementById('qrCanvas');
+        const qrCodeImageContainer = document.getElementById('qrCodeImageContainer');
+        const saveQrButton = document.getElementById('saveQrButton');
+        const loadQrInput = document.getElementById('loadQrInput');
+        const generateMessageDiv = document.getElementById('generateMessage');
+        const scanMessageDiv = document.getElementById('scanMessage');
+        const scanResultDiv = document.getElementById('scanResult');
+        const scanResultList = document.getElementById('scanResultList');
+        const readerDiv = document.getElementById('reader');
+        const generateTab = document.getElementById('generate-tab');
+        const scanTab = document.getElementById('scan-tab');
+        const cloudModeSection = document.getElementById('cloudModeSection');
+        const jsonDataDisplay = document.getElementById('jsonDataDisplay');
+        const copyJsonButton = document.getElementById('copyJsonButton');
+        const cloudUrlInput = document.getElementById('cloudUrlInput');
+        const generateLinkQrButton = document.getElementById('generateLinkQrButton');
+        const compressedSizeInfo = document.getElementById('compressedSizeInfo');
 
-      // 圖片：優先 URL，再檔案
-      const url = document.getElementById('productImageUrl').value.trim();
-      const file = document.getElementById('productImageFile').files[0];
+        let html5QrCode = null; // Scanner instance
+        let currentQrData = null; // To store data for saving QR
+        let currentQrDataType = 'canvas'; // 'canvas', 'image'
+        let productImageBase64 = null; // To store uploaded image data as base64 string
 
-      // 最終封包與 QR 生成
-      const finalize = payload => {
-        const jsonStr = JSON.stringify(payload);
-        // 先用 LZString 壓縮
-        let b64 = LZString.compressToBase64(jsonStr);
-        // 超限就 fallback 至原生 Base64
-        if (b64.length >= 2953) {
-          b64 = btoa(unescape(encodeURIComponent(jsonStr)));
+        // --- Utility Functions ---
+
+        /**
+         * 顯示訊息
+         * @param {HTMLElement} element - 顯示訊息的元素
+         * @param {string} message - 訊息內容
+         * @param {string} type - 訊息類型 (success, danger, warning, info)
+         */
+        function showMessage(element, message, type = 'info') {
+            element.className = `alert alert-${type} mt-3`; // Keep margin
+            element.innerHTML = message; // Use innerHTML to allow basic formatting if needed
+            element.style.display = 'block';
+            console.log(`[Message ${type}]: ${message}`); // Debug log
         }
-        if (b64.length > 2953) {
-          alert(`資料過長 (${b64.length} bytes)，請精簡內容。`);
-          return;
+
+        /**
+         * 隱藏訊息
+         * @param {HTMLElement} element - 隱藏訊息的元素
+         */
+        function hideMessage(element) {
+            element.style.display = 'none';
+            element.textContent = '';
         }
-        qr.value = b64;
-        // 顯示 Debug 資訊
-        document.getElementById('orig-payload').textContent = jsonStr;
-        document.getElementById('b64-payload').textContent = b64;
-      };
 
-      // 填入圖片資料
-      if (url) {
-        finalize({ ...data, productImage: url });
-      }
-      else if (file) {
-        const reader = new FileReader();
-        reader.onload = () => finalize({ ...data, productImage: reader.result });
-        reader.readAsDataURL(file);
-      }
-      else {
-        finalize(data);
-      }
-    });
-
-    // ──────────────────────────────────────────────────
-    // 5. 掃描 QR Code（切換至掃描分頁時初始化）
-    // ──────────────────────────────────────────────────
-    let scanner = null;
-    const scanTabBtn = document.querySelector('button[data-bs-target="#scan"]');
-
-    scanTabBtn.addEventListener('shown.bs.tab', () => {
-      if (scanner) return;  // 已經初始化過就跳過
-
-      // 建構 Html5QrcodeScanner
-      scanner = new Html5QrcodeScanner(
-        "reader",
-        {
-          fps: 12,                              // 掃描幀率
-          qrbox: { width: 300, height: 300 },   // 顯示並掃描的框大小
-          disableFlip: true,                    // 關閉翻轉
-          rememberLastUsedCamera: true,         // 記住使用過的相機
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true // 如果有 BarcodeDetector API 就用它
-          },
-          defaultCameraId: defaultCamId         // 先前定義的鏡頭選擇函式
-        },
-        /* verbose= */ false
-      );
-
-      // 掃描成功回呼
-      const onScanSuccess = decodedText => {
-        try {
-          // 先嘗試 LZString 解壓，失敗就用 atob
-          let raw = LZString.decompressFromBase64(decodedText);
-          if (!raw) raw = decodeURIComponent(escape(atob(decodedText)));
-          const info = JSON.parse(raw);
-
-          // 組畫面
-          let html = '<h4 class="mb-3">茶葉資訊</h4><ul class="list-group mb-3">';
-          Object.entries(info).forEach(([k, v]) => {
-            const lbl = labelMap[k] || k;
-            if (k === 'productImage') {
-              html += `
-                <li class="list-group-item">
-                  <strong>${lbl}：</strong><br>
-                  <img src="${v}" class="img-fluid rounded mt-2">
-                </li>`;
-            } else {
-              html += `
-                <li class="list-group-item d-flex justify-content-between">
-                  <span>${lbl}</span><span>${v}</span>
-                </li>`;
-            }
-          });
-          html += '</ul>';
-          document.getElementById('result').innerHTML = html;
-
-          // 如果你只想掃一次，則可以停止掃描：
-          // scanner.clear().catch(err => console.warn('停止掃描失敗', err));
-        } catch (e) {
-          document.getElementById('result').innerHTML =
-            `<div class="alert alert-danger">解析錯誤：${e.message}</div>`;
+        /**
+         * 將 File 物件讀取為 Base64 字串 (Data URL)
+         * @param {File} file - 要讀取的檔案
+         * @returns {Promise<string>} - Base64 Data URL 字串的 Promise
+         */
+        function readFileAsBase64(file) {
+             console.log(`[Debug] Reading file: ${file.name}, size: ${file.size}, type: ${file.type}`);
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                     console.log("[Debug] File read successfully as Base64.");
+                    resolve(reader.result); // reader.result contains the Data URL (e.g., "data:image/jpeg;base64,...")
+                }
+                reader.onerror = (error) => {
+                     console.error("[Debug] File reading error:", error);
+                    reject(error);
+                }
+                reader.readAsDataURL(file);
+            });
         }
-      };
 
-      // 掃描錯誤回呼（可以印出來看看為什麼沒解到碼）
-      const onScanError = errorMessage => {
-        console.debug('QR 掃描錯誤：', errorMessage);
-      };
+        // --- Core Application Logic ---
 
-      // 開始掃描（帶入成功與錯誤回呼）
-      scanner.render(onScanSuccess, onScanError);
-    });
-
-    // ──────────────────────────────────────────────────
-    // 6. 儲存 QR Code 圖片
-    // ──────────────────────────────────────────────────
-    document.getElementById('save-btn').addEventListener('click', async () => {
-      try {
-        // 直接取得 canvas 元素
-        const canvas = document.getElementById('qr-code');
-        // 將 canvas 轉為 blob
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-        const defaultName = (document.getElementById('teaName').value.trim() || 'qr-code') + '.png';
-
-        if (window.showSaveFilePicker) {
-          const handle = await showSaveFilePicker({
-            suggestedName: defaultName,
-            types: [{
-              description: 'PNG 圖片',
-              accept: { 'image/png': ['.png'] }
-            }]
-          });
-          const writable = await handle.createWritable();
-          await writable.write(blob);
-          await writable.close();
-        } else {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = defaultName;
-          a.click();
-          URL.revokeObjectURL(url);
-        }
-      } catch (err) {
-        alert('儲存失敗：' + err.message);
-      }
-    });
-
-    // ──────────────────────────────────────────────────
-    // 7. 載入 QR Code（從檔案）
-    // ──────────────────────────────────────────────────
-    document.getElementById('load-btn').addEventListener('click', () => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.onchange = e => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new Html5Qrcode('qr-reader-file');
-        reader.scanFile(file, true)
-          .then(decodedText => {
-            let raw = LZString.decompressFromBase64(decodedText);
-            if (!raw) raw = decodeURIComponent(escape(atob(decodedText)));
-            const info = JSON.parse(raw);
-
-            // 回填表單
-            Object.entries(info).forEach(([k, v]) => {
-              const el = document.getElementById(k);
-              if (el) el.value = v;
+        /**
+         * 根據 fieldConfig 動態產生表單欄位和 Accordion
+         */
+        function generateFormFields() {
+            console.log("[Debug] Generating form fields...");
+            // 1. 將欄位分配到各個 section
+            fieldConfig.forEach(field => {
+                if (sections[field.section] && field.type !== 'preview') { // Exclude preview placeholders
+                    sections[field.section].fields.push(field);
+                }
             });
 
-            // 更新畫面 QR（以純 Base64 再產生）
-            const jsonStr = JSON.stringify(info);
-            qr.value = btoa(unescape(encodeURIComponent(jsonStr)));
-            reader.clear();
-          })
-          .catch(err => {
-            alert('載入失敗：' + err);
-            reader.clear();
-          });
-      };
-      input.click();
-    });
+            // 2. 為每個 section 產生 Accordion Item
+            Object.keys(sections).forEach((key, index) => {
+                const section = sections[key];
+                if (section.fields.length === 0) return; // Skip sections with no fields
 
-  }); // end DOMContentLoaded
-</script>
+                const accordionItemId = `accordion-${key}`;
+                const headerId = `header-${key}`;
+                const collapseId = `collapse-${key}`;
+
+                const accordionItem = document.createElement('div');
+                accordionItem.className = 'accordion-item';
+                sections[key].element = accordionItem; // Store reference
+
+                const accordionHeader = document.createElement('h2');
+                accordionHeader.className = 'accordion-header';
+                accordionHeader.id = headerId;
+
+                const accordionButton = document.createElement('button');
+                accordionButton.className = `accordion-button ${index === 0 ? '' : 'collapsed'}`; // First section expanded by default
+                accordionButton.type = 'button';
+                accordionButton.dataset.bsToggle = 'collapse';
+                accordionButton.dataset.bsTarget = `#${collapseId}`;
+                accordionButton.ariaExpanded = index === 0 ? 'true' : 'false';
+                accordionButton.ariaControls = collapseId;
+                accordionButton.textContent = section.title;
+
+                accordionHeader.appendChild(accordionButton);
+
+                const accordionCollapse = document.createElement('div');
+                accordionCollapse.id = collapseId;
+                // REMOVED data-bs-parent to allow multiple sections open
+                accordionCollapse.className = `accordion-collapse collapse ${index === 0 ? 'show' : ''}`;
+                accordionCollapse.ariaLabelledby = headerId;
+                // accordionCollapse.dataset.bsParent = '#teaFormAccordion'; // REMOVED THIS LINE
+
+                const accordionBody = document.createElement('div');
+                accordionBody.className = 'accordion-body';
+
+                const row = document.createElement('div');
+                row.className = 'row g-3'; // g-3 for gutters
+
+                // 3. 在 Accordion Body 中產生欄位
+                section.fields.forEach(field => {
+                    const colDiv = document.createElement('div');
+                    colDiv.className = field.col || 'col-12';
+
+                    const label = document.createElement('label');
+                    label.htmlFor = field.id;
+                    label.className = 'form-label';
+                    label.textContent = field.label;
+
+                    let inputElement;
+                    if (field.type === 'textarea') {
+                        inputElement = document.createElement('textarea');
+                        inputElement.rows = 3;
+                        inputElement.id = field.id;
+                        inputElement.name = field.id;
+                        inputElement.className = 'form-control';
+                        if (field.placeholder) inputElement.placeholder = field.placeholder;
+                        colDiv.appendChild(label);
+                        colDiv.appendChild(inputElement);
+
+                    } else if (field.type === 'file') {
+                        inputElement = document.createElement('input'); // The hidden actual input
+                        inputElement.type = 'file';
+                        inputElement.accept = 'image/*';
+                        inputElement.id = field.id;
+                        inputElement.name = field.id; // Important for FormData
+
+                        const fileLabelButton = document.createElement('label'); // The visible button
+                        fileLabelButton.htmlFor = field.id;
+                        fileLabelButton.className = 'btn btn-sm custom-file-upload'; // Use custom class
+                        fileLabelButton.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-image me-1" viewBox="0 0 16 16"> <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/> <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1z"/> </svg>
+                            選擇圖片`;
+
+                        const fileNameSpan = document.createElement('span'); // To display filename
+                        fileNameSpan.id = `${field.id}Name`; // Corrected ID here
+                        fileNameSpan.className = 'file-name-display ms-2'; // Add margin start
+
+                        const previewDiv = document.createElement('div'); // Preview container
+                        previewDiv.id = `${field.id}Preview`;
+                        previewDiv.className = 'mt-2'; // Add margin top
+
+                        colDiv.appendChild(label);
+                        colDiv.appendChild(document.createElement('br'));
+                        colDiv.appendChild(fileLabelButton);
+                        colDiv.appendChild(fileNameSpan);
+                        colDiv.appendChild(inputElement); // Append hidden input
+                        colDiv.appendChild(previewDiv); // Append preview container
+
+                        // Event listener for file selection
+                        inputElement.addEventListener('change', async (event) => {
+                           const file = event.target.files[0];
+                           previewDiv.innerHTML = ''; // Clear previous preview
+                           fileNameSpan.textContent = ''; // Clear filename
+                           productImageBase64 = null; // Clear stored base64
+                           if (file) {
+                                fileNameSpan.textContent = file.name; // Show filename
+                                try {
+                                    productImageBase64 = await readFileAsBase64(file);
+                                    console.log(`[Debug] Read Base64 for preview, length: ${productImageBase64.length}`);
+                                    const img = document.createElement('img');
+                                    img.src = productImageBase64;
+                                    img.alt = '圖片預覽';
+                                    // Styles moved to CSS (#productImageFilePreview img)
+                                    previewDiv.appendChild(img);
+                                } catch (error) {
+                                    console.error("無法讀取檔案:", error);
+                                    showMessage(generateMessageDiv, '無法讀取圖片檔案。', 'danger');
+                                    fileNameSpan.textContent = '讀取失敗';
+                                }
+                           }
+                        });
+
+                    } else { // Handles text, number, date, url etc.
+                        inputElement = document.createElement('input');
+                        inputElement.type = field.type;
+                         if (field.step) inputElement.step = field.step;
+                        inputElement.id = field.id;
+                        inputElement.name = field.id;
+                        inputElement.className = 'form-control';
+                        if (field.placeholder) inputElement.placeholder = field.placeholder;
+                        colDiv.appendChild(label);
+                        colDiv.appendChild(inputElement);
+                    }
+
+                    row.appendChild(colDiv);
+                });
+
+                accordionBody.appendChild(row);
+                accordionCollapse.appendChild(accordionBody);
+                accordionItem.appendChild(accordionHeader);
+                accordionItem.appendChild(accordionCollapse);
+                teaFormAccordion.appendChild(accordionItem);
+            });
+            console.log("[Debug] Form fields generated.");
+        }
+
+        /**
+         * 產生 QR Code (Canvas or Image for URL)
+         * @param {string} data - 要編碼的資料 (壓縮後的 Base64 字串或 URL)
+         * @param {boolean} isUrl - 標示 data 是否為 URL
+         */
+        function displayQrCode(data, isUrl = false) {
+            hideMessage(generateMessageDiv);
+            cloudModeSection.style.display = 'none';
+            qrCodeImageContainer.innerHTML = ''; // Clear previous image QR
+            qrCanvas.style.display = 'none'; // Hide canvas initially
+
+            console.log(`[Debug] Generating QR Code. Is URL: ${isUrl}, Data: ${isUrl ? data : data.substring(0, 50) + '...'}`);
+
+            try {
+                currentQrData = data; // Store data for saving
+
+                // Use Canvas for compressed data, potentially image for URL for cleaner saving?
+                // Let's stick to Canvas for consistency for now.
+                qrCanvas.style.display = 'block';
+                currentQrDataType = 'canvas';
+                new QRious({
+                    element: qrCanvas,
+                    value: data,
+                    size: 420,
+                    level: 'M',
+                    padding: 20 // Increased padding
+                });
+
+                qrCodeResultDiv.style.display = 'block';
+                qrCodeResultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                console.log("[Debug] QR Code generated successfully on canvas.");
+
+            } catch (error) {
+                console.error("QR Code 產生失敗:", error);
+                showMessage(generateMessageDiv, `QR Code 產生失敗: ${error.message}`, 'danger');
+                qrCodeResultDiv.style.display = 'none';
+            }
+        }
+
+        /**
+         * 處理表單提交事件
+         */
+        async function handleFormSubmit(event) {
+            event.preventDefault();
+            console.log("[Debug] Form submitted.");
+            hideMessage(generateMessageDiv);
+            qrCodeResultDiv.style.display = 'none';
+            cloudModeSection.style.display = 'none';
+
+            const formData = new FormData(teaForm);
+            const teaData = {};
+
+            // 收集表單數據
+            fieldConfig.forEach(field => {
+                if (field.type !== 'file' && field.type !== 'preview') { // Exclude file input and preview
+                    const value = formData.get(field.id);
+                    if (value !== null && value !== '') { // Only store non-empty values
+                       teaData[field.id] = value;
+                       console.log(`[Debug] Form Data: ${field.id} = ${value}`);
+                    }
+                }
+            });
+
+            // 處理圖片：優先使用上傳的檔案 (Base64 Data URL)
+            if (productImageBase64) {
+                teaData.productImageBase64 = productImageBase64; // Store the Base64 Data URL
+                console.log(`[Debug] Using uploaded image Base64 (length: ${productImageBase64.length})`);
+                // If Base64 exists, remove the URL field value to avoid redundancy
+                if (teaData.productImageUrl) {
+                    console.log(`[Debug] Removing productImageUrl (${teaData.productImageUrl}) because Base64 exists.`);
+                    delete teaData.productImageUrl;
+                    const urlInput = document.getElementById('productImageUrl');
+                    if(urlInput) urlInput.value = ''; // Clear the input field visually
+                }
+            } else if (teaData.productImageUrl) {
+                console.log(`[Debug] Using productImageUrl: ${teaData.productImageUrl}`);
+                // Keep the URL if no Base64 is present
+            }
+
+            // Remove potentially empty placeholder fields if needed (e.g., productImageFile)
+            delete teaData.productImageFile; // This field itself doesn't hold the value
+
+            if (Object.keys(teaData).length === 0) {
+                showMessage(generateMessageDiv, '請至少填寫一項資訊。', 'warning');
+                return;
+            }
+
+            try {
+                const jsonString = JSON.stringify(teaData);
+                console.log("[Debug] Original JSON String:", jsonString.substring(0, 200) + '...'); // Log beginning
+
+                const compressedData = LZString.compressToBase64(jsonString);
+                const compressedLength = compressedData.length;
+                console.log("[Debug] Compressed Base64:", compressedData.substring(0, 100) + '...'); // Log beginning
+                console.log("[Debug] Compressed Length:", compressedLength);
+
+                if (compressedLength <= MAX_QR_LENGTH) {
+                    // --- Direct Mode ---
+                    console.log("[Debug] Data fits in QR Code (Direct Mode).");
+                    displayQrCode(compressedData, false);
+                } else {
+                    // --- Cloud Mode ---
+                    console.log("[Debug] Data too large for QR Code (Cloud Mode).");
+                    compressedSizeInfo.textContent = compressedLength; // Show compressed size
+                    showMessage(generateMessageDiv, `資料量過大 (${compressedLength} > ${MAX_QR_LENGTH} bytes)，請使用雲端模式。`, 'warning');
+                    jsonDataDisplay.value = jsonString; // Display full JSON for copying
+                    cloudUrlInput.value = ''; // Clear URL input
+                    cloudModeSection.style.display = 'block';
+                    qrCodeResultDiv.style.display = 'none';
+                    cloudModeSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+
+            } catch (error) {
+                console.error("處理表單資料時發生錯誤:", error);
+                showMessage(generateMessageDiv, `處理資料時發生錯誤: ${error.message}`, 'danger');
+            }
+        }
+
+        /**
+         * 處理儲存 QR Code 按鈕點擊事件（結合 File System Access API 與 <a download> fallback）
+         */
+        async function handleSaveQr() {
+            if (!currentQrData) {
+                showMessage(generateMessageDiv, '沒有可儲存的 QR Code。', 'warning');
+                return;
+            }
+            console.log("[Debug] 開始儲存 QR Code...");
+
+            // 1. 建議檔名（來自茶名）
+            const teaName = document.getElementById('teaName')?.value.trim();
+            const baseName = `tea_qrcode${teaName ? '_' + teaName : ''}`;
+            const suggestedName = baseName + '.png';
+
+            // 如果支援 File System Access API，就用原生對話框
+            if (window.showSaveFilePicker) {
+                try {
+                    console.log("[Debug] 使用 File System Access API 儲存");
+                    const fileHandle = await window.showSaveFilePicker({
+                        suggestedName,
+                        types: [{
+                            description: 'PNG 圖片',
+                            accept: { 'image/png': ['.png'] }
+                        }]
+                    });
+                    const writable = await fileHandle.createWritable();
+
+                    // 取得 Blob
+                    let blob;
+                    if (currentQrDataType === 'canvas' && qrCanvas) {
+                        blob = await new Promise(res => qrCanvas.toBlob(res, 'image/png'));
+                    } else if (currentQrDataType === 'image' && qrCodeImageContainer.firstChild) {
+                        const resp = await fetch(qrCodeImageContainer.firstChild.src);
+                        blob = await resp.blob();
+                    }
+                    if (!blob) throw new Error('無法取得 QR Code 圖片資料');
+
+                    await writable.write(blob);
+                    await writable.close();
+
+                    showMessage(generateMessageDiv, `QR Code (${suggestedName}) 已成功儲存。`, 'success');
+                    console.log("[Debug] File System Access API 儲存完成");
+                } catch (e) {
+                    if (e.name === 'AbortError') {
+                        console.log("[Debug] 使用者取消儲存");
+                    } else {
+                        console.error("儲存失敗：", e);
+                        showMessage(generateMessageDiv, '儲存失敗，請稍後再試。', 'danger');
+                    }
+                }
+
+            // fallback: 傳統 <a download> + prompt()
+            } else {
+                console.log("[Debug] 使用 <a download> fallback 儲存");
+                // 2. 詢問使用者檔名
+                const inputName = prompt('請輸入要儲存的檔名（不含副檔名）', baseName);
+                if (!inputName) {
+                    console.log("[Debug] 使用者取消檔名輸入");
+                    return;
+                }
+                const filename = inputName.toLowerCase().endsWith('.png') ? inputName : inputName + '.png';
+
+                // 3. 產生 data URL
+                let dataUrl;
+                if (currentQrDataType === 'canvas' && qrCanvas) {
+                    try {
+                        dataUrl = qrCanvas.toDataURL('image/png');
+                    } catch (e) {
+                        console.error("從 Canvas 匯出失敗：", e);
+                        showMessage(generateMessageDiv, '無法從 Canvas 匯出 QR Code。', 'danger');
+                        return;
+                    }
+                } else if (currentQrDataType === 'image' && qrCodeImageContainer.firstChild) {
+                    dataUrl = qrCodeImageContainer.firstChild.src;
+                } else {
+                    showMessage(generateMessageDiv, '找不到有效的 QR Code 來源。', 'warning');
+                    return;
+                }
+
+                // 4. 觸發下載
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                showMessage(generateMessageDiv, `QR Code (${filename}) 已開始下載。`, 'success');
+                console.log("[Debug] <a download> fallback 儲存完成");
+            }
+        }
+
+         /**
+         * 處理複製 JSON 按鈕點擊事件
+         */
+        function handleCopyJson() {
+            if (!jsonDataDisplay.value) return;
+            jsonDataDisplay.select();
+            jsonDataDisplay.setSelectionRange(0, 99999); // For mobile devices
+            try {
+                // Use Clipboard API for modern browsers
+                navigator.clipboard.writeText(jsonDataDisplay.value).then(() => {
+                    console.log("[Debug] JSON copied to clipboard (Clipboard API).");
+                    showMessage(generateMessageDiv, 'JSON 已複製到剪貼簿。', 'success');
+                }).catch(err => {
+                     console.warn("[Debug] Clipboard API failed, falling back to execCommand:", err);
+                     // Fallback for older browsers
+                    if(document.execCommand('copy')) {
+                        console.log("[Debug] JSON copied to clipboard (execCommand).");
+                        showMessage(generateMessageDiv, 'JSON 已複製到剪貼簿。', 'success');
+                    } else {
+                        throw new Error('execCommand failed');
+                    }
+                });
+            } catch (err) {
+                console.error('無法複製 JSON:', err);
+                showMessage(generateMessageDiv, '複製 JSON 失敗，請手動選取並複製。', 'danger');
+            } finally {
+                 // Deselect text
+                 window.getSelection()?.removeAllRanges();
+            }
+        }
+
+        /**
+         * 處理使用連結產生 QR Code 按鈕點擊事件
+         */
+        function handleGenerateLinkQr() {
+            const url = cloudUrlInput.value.trim();
+            console.log(`[Debug] Generating QR from link: ${url}`);
+            if (!url) {
+                showMessage(generateMessageDiv, '請輸入有效的雲端資料連結。', 'warning');
+                cloudUrlInput.focus();
+                return;
+            }
+            try {
+                 // Basic URL validation
+                 new URL(url);
+                 displayQrCode(url, true); // Generate QR code with the URL
+                 cloudModeSection.style.display = 'none'; // Hide cloud mode section
+            } catch (error) {
+                 console.error("[Debug] Invalid URL format:", error);
+                 showMessage(generateMessageDiv, '請輸入有效的 URL 格式 (例如 https://...) 。', 'danger');
+                 cloudUrlInput.focus();
+            }
+        }
+
+
+        /**
+         * 解析 QR Code 資料 (可能是壓縮字串或 URL)
+         * @param {string} decodedText - 從 QR Code 掃描到的原始字串
+         * @returns {Promise<object>} - 解析後的 JSON 物件 Promise
+         */
+        async function parseQrData(decodedText) {
+            console.log(`[Debug] Parsing QR Data: ${decodedText.substring(0, 100)}...`);
+            if (decodedText.startsWith('http://') || decodedText.startsWith('https://')) {
+                // --- Handle URL (Cloud Mode) ---
+                console.log("[Debug] Detected URL, attempting to fetch JSON...");
+                // Use a specific message element for scan tab if possible, otherwise use generateMessageDiv
+                const messageElement = document.getElementById('scan-tab').classList.contains('active') ? scanMessageDiv : generateMessageDiv;
+                showMessage(messageElement, '偵測到 URL，正在擷取雲端資料...', 'info');
+                try {
+                    // Use fetch API with appropriate headers
+                    const response = await fetch(decodedText, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json, text/plain, */*' // Accept JSON or plain text
+                        },
+                        mode: 'cors' // Enable CORS requests
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`伺服器錯誤: ${response.status} ${response.statusText}`);
+                    }
+
+                    // Try parsing as JSON first
+                    let jsonData;
+                    try {
+                        jsonData = await response.json();
+                        console.log("[Debug] Successfully fetched and parsed JSON from URL.");
+                    } catch (jsonError) {
+                         console.warn("[Debug] Failed to parse response as JSON:", jsonError);
+                         throw new Error('無法將伺服器回應解析為 JSON 格式。');
+                    }
+
+                    showMessage(messageElement, '已成功從雲端載入資料。', 'success');
+                    return jsonData;
+                } catch (error) {
+                    console.error("從 URL 擷取 JSON 失敗:", error);
+                    // Ensure error is thrown so it can be caught by the caller
+                    throw new Error(`從 URL 擷取資料失敗: ${error.message}`);
+                }
+            } else {
+                // --- Handle Compressed String (Direct Mode) ---
+                console.log("[Debug] Detected non-URL data, attempting decompression...");
+                 const messageElement = document.getElementById('scan-tab').classList.contains('active') ? scanMessageDiv : generateMessageDiv;
+                try {
+                    const decompressed = LZString.decompressFromBase64(decodedText);
+                    if (!decompressed) {
+                        console.error("[Debug] Decompression failed (result is null or empty).");
+                        throw new Error('解壓縮失敗。這可能不是有效的茶葉資料 QR Code，或者資料已損壞。');
+                    }
+                    console.log("[Debug] Decompressed successfully:", decompressed.substring(0, 200) + '...');
+
+                    const jsonData = JSON.parse(decompressed);
+                    console.log("[Debug] JSON parsed successfully.");
+                     // Don't show success message here, let the caller handle it after population/display
+                    // showMessage(messageElement, 'QR Code 解碼成功。', 'success');
+                    return jsonData;
+                } catch (error) {
+                    console.error("解壓縮或解析 JSON 失敗:", error);
+                     // Check if it's a JSON parse error specifically
+                     if (error instanceof SyntaxError) {
+                         throw new Error(`解碼失敗: 資料格式錯誤，無法解析為 JSON。 (${error.message})`);
+                     } else {
+                        throw new Error(`解碼失敗: ${error.message}`);
+                     }
+                }
+            }
+        }
+
+        /**
+         * 將解析後的資料顯示在掃描結果列表中
+         * @param {object} data - 解析後的 JSON 物件
+         */
+        function displayScanResult(data) {
+            console.log("[Debug] Displaying scan result:", data);
+            scanResultList.innerHTML = ''; // Clear previous results
+            let hasContent = false;
+
+            // Create a map for faster lookup if needed, but fieldConfig is small enough
+            const fieldMap = fieldConfig.reduce((map, field) => {
+                map[field.id] = field;
+                return map;
+            }, {});
+
+            // Iterate through the data received, using fieldConfig for labels and types
+            for (const key in data) {
+                if (data.hasOwnProperty(key)) {
+                    const field = fieldMap[key];
+                    const value = data[key];
+
+                    // Skip empty/null values and the base64 key itself (it's handled by productImageFile)
+                    if (value === null || value === '' || key === 'productImageBase64') {
+                        continue;
+                    }
+
+                    const label = field ? field.label : key; // Use config label or key as fallback
+                    const type = field ? field.type : 'text'; // Get type from config
+
+                    let displayValueHtml = '';
+                    hasContent = true;
+
+                    // Special handling for image (either Base64 or URL)
+                    if (key === 'productImageUrl' && value) {
+                         console.log(`[Debug] Displaying image from URL: ${value}`);
+                         // Display link and image preview
+                         displayValueHtml = `<a href="${value}" target="_blank" rel="noopener noreferrer">${value}</a><br>
+                                             <img src="${value}" alt="商品圖片 (URL)" class="img-fluid rounded mt-2"
+                                                  onerror="this.alt='無法載入圖片'; this.style.display='block'; this.style.border='1px dashed red';">`; // Added onerror handler
+                    } else if (type === 'textarea' && value) {
+                         console.log(`[Debug] Displaying textarea: ${key}`);
+                         // Use <pre> for textareas to preserve formatting
+                         displayValueHtml = `<pre>${value}</pre>`;
+                    } else if (type === 'url' && value && key !== 'productImageUrl') { // Handle other URLs as links
+                         console.log(`[Debug] Displaying URL link: ${key}`);
+                         displayValueHtml = `<a href="${value}" target="_blank" rel="noopener noreferrer">${value}</a>`;
+                    }
+                    else {
+                        console.log(`[Debug] Displaying text: ${key} = ${value}`);
+                        // Escape HTML to prevent XSS from text fields if necessary
+                        // For simplicity here, we assume data is relatively safe or display as is.
+                        // To escape: displayValueHtml = value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                        displayValueHtml = value; // Default display
+                    }
+
+                    const listItem = document.createElement('li');
+                    listItem.className = 'list-group-item';
+                    listItem.innerHTML = `<strong>${label}:</strong> ${displayValueHtml}`;
+                    scanResultList.appendChild(listItem);
+                }
+            }
+
+             // Specifically check and display Base64 image if it exists, linked to the 'productImageFile' label
+             if (data.productImageBase64) {
+                 const field = fieldMap['productImageFile']; // Get the config for the file input
+                 const label = field ? field.label : '上傳商品圖片'; // Use its label
+                 hasContent = true;
+                 const listItem = document.createElement('li');
+                 listItem.className = 'list-group-item';
+                 console.log(`[Debug] Displaying image from Base64 (length: ${data.productImageBase64.length}) linked to ${label}`);
+                 listItem.innerHTML = `<strong>${label}:</strong><br><img src="${data.productImageBase64}" alt="商品圖片 (來自上傳)" class="img-fluid rounded mt-2">`;
+                 scanResultList.appendChild(listItem);
+             }
+
+
+            if (hasContent) {
+                scanResultDiv.style.display = 'block';
+                scanResultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                 showMessage(scanMessageDiv, '資料顯示完畢。', 'success'); // Add final success message
+            } else {
+                scanResultDiv.style.display = 'none';
+                showMessage(scanMessageDiv, 'QR Code 中沒有找到可顯示的資料。', 'warning');
+            }
+        }
+
+         /**
+         * 將解析後的資料回填到表單中
+         * @param {object} data - 解析後的 JSON 物件
+         */
+        function populateForm(data) {
+            console.log("[Debug] Populating form with data:", data);
+            try {
+                teaForm.reset(); // Clear form fields
+                productImageBase64 = null; // Clear stored Base64
+                // Clear file input preview and filename display
+                const previewDiv = document.getElementById('productImageFilePreview');
+                const fileNameSpan = document.getElementById('productImageFileName'); // Corrected ID
+                const fileLabel = document.querySelector('label[for="productImageFile"]'); // The button label
+                if (previewDiv) previewDiv.innerHTML = '';
+                if (fileNameSpan) fileNameSpan.textContent = '';
+                if (fileLabel) fileLabel.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-image me-1" viewBox="0 0 16 16"> <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/> <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1z"/> </svg>
+                    選擇圖片`; // Reset button text
+
+
+                let populatedFields = 0;
+                fieldConfig.forEach(field => {
+                    const inputElement = document.getElementById(field.id);
+                    if (inputElement) {
+                        // Handle file input separately for preview
+                        if (field.type === 'file') {
+                            inputElement.value = ''; // Clear file input value
+                            // Check if Base64 data exists in the loaded data
+                            if (data.productImageBase64) {
+                                console.log(`[Debug] Populating Base64 image preview (length: ${data.productImageBase64.length})`);
+                                productImageBase64 = data.productImageBase64; // Store it globally for potential resubmission
+                                if (previewDiv) {
+                                    const img = document.createElement('img');
+                                    img.src = productImageBase64;
+                                    img.alt = '載入的圖片';
+                                    previewDiv.appendChild(img);
+                                }
+                                if (fileNameSpan) fileNameSpan.textContent = '已載入圖片 (來自 QR Code)'; // Use correct span ID
+                                if (fileLabel) fileLabel.innerHTML = `
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-circle-fill me-1" viewBox="0 0 16 16"> <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0m-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/> </svg>
+                                    更改圖片`; // Change button text
+                                populatedFields++;
+                             } else if (data.productImageUrl) {
+                                 // If only URL exists, maybe show a note? Or leave file input clear.
+                                 console.log(`[Debug] Image URL found (${data.productImageUrl}), but no Base64. File input remains clear.`);
+                                 if (fileNameSpan) fileNameSpan.textContent = '圖片使用下方網址'; // Use correct span ID
+                             }
+                        } else {
+                             // Populate regular fields
+                             if (data[field.id] !== undefined && data[field.id] !== null) {
+                                 inputElement.value = data[field.id];
+                                 // console.log(`[Debug] Populated field ${field.id} with value: ${data[field.id]}`); // Reduce log verbosity
+                                 populatedFields++;
+                             } else {
+                                 inputElement.value = ''; // Ensure field is cleared if not in data
+                             }
+                        }
+                    } else {
+                        // This case might happen for the 'preview' type placeholder or if ID mismatch
+                        if(field.type !== 'preview') {
+                            console.warn(`[Debug] Input element not found for field ID: ${field.id}`);
+                        }
+                    }
+                });
+
+                console.log(`[Debug] Form population complete. ${populatedFields} fields populated.`);
+
+                // Expand the first accordion section by default after populating
+                const firstAccordionButton = teaFormAccordion.querySelector('.accordion-button');
+                const firstCollapse = teaFormAccordion.querySelector('.accordion-collapse');
+                if (firstAccordionButton && firstCollapse && firstAccordionButton.classList.contains('collapsed')) {
+                    const bsCollapse = bootstrap.Collapse.getOrCreateInstance(firstCollapse);
+                    bsCollapse.show();
+                     console.log("[Debug] Expanded first accordion section after population.");
+                }
+
+                // Final success message on the generate tab
+                showMessage(generateMessageDiv, '已成功從 QR Code 載入資料到表單。', 'success');
+                // Switch back to the generate tab
+                const bsGenerateTab = bootstrap.Tab.getOrCreateInstance(generateTab);
+                bsGenerateTab.show();
+                // Scroll to top smoothly
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            } catch (error) {
+                 console.error("[Error] Error during form population:", error);
+                 showMessage(generateMessageDiv, `填充表單時發生錯誤: ${error.message}`, 'danger');
+            }
+        }
+
+
+        /**
+         * QR Code 掃描成功回調
+         */
+        async function onScanSuccess(decodedText, decodedResult) {
+            if (!html5QrCode) {
+                 console.warn("[Debug] Scan success callback triggered, but scanner instance is null. Ignoring.");
+                 return; // Prevent processing if scanner was stopped
+            }
+
+            console.log(`[Debug] QR Scan Success! Raw Text: ${decodedText}`, decodedResult);
+            showMessage(scanMessageDiv, `掃描成功！正在處理資料...`, 'info');
+            scanResultDiv.style.display = 'none'; // Hide previous results while processing
+
+            // --- Stop Scanner ---
+            const scannerToStop = html5QrCode;
+            html5QrCode = null; // Nullify the global instance immediately
+
+            try {
+                await scannerToStop.stop();
+                console.log("[Debug] QR Code scanning stopped successfully.");
+                readerDiv.innerHTML = '<p class="text-center text-success p-3">掃描器已停止。</p>';
+            } catch (err) {
+                 console.error("[Debug] Error stopping scanner, but continuing processing:", err);
+                 readerDiv.innerHTML = '<p class="text-center text-warning p-3">掃描器停止時發生錯誤，但已讀取資料。</p>';
+            }
+            // --- End Stop Scanner ---
+
+
+            // --- Process Data ---
+            try {
+                const jsonData = await parseQrData(decodedText);
+                displayScanResult(jsonData); // Display results on scan tab
+            } catch (error) {
+                 console.error("處理掃描結果失敗:", error);
+                 showMessage(scanMessageDiv, `處理掃描結果失敗: ${error.message}`, 'danger');
+                 scanResultDiv.style.display = 'none';
+                 readerDiv.innerHTML += '<br><button class="btn btn-sm btn-primary mt-2" onclick="startScanner()">重新掃描</button>'; // Added margin
+            }
+             // --- End Process Data ---
+        }
+
+        /**
+         * QR Code 掃描錯誤回調 (Scanner errors, not decoding errors)
+         */
+        function onScanFailure(error) {
+            // Ignore "No QR code found" which happens frequently
+            if (error && error.message && !error.message.includes("NotFoundException")) {
+                 console.warn(`[Debug] Non-critical scan error: ${error}`);
+            }
+        }
+
+
+        /**
+         * 初始化並啟動相機掃描器
+         */
+        function startScanner() {
+             console.log("[Debug] Attempting to start scanner...");
+             hideMessage(scanMessageDiv);
+             scanResultDiv.style.display = 'none';
+             scanResultList.innerHTML = '';
+             readerDiv.innerHTML = ''; // Clear previous scanner UI/messages
+
+             if (html5QrCode && html5QrCode.isScanning) {
+                 console.warn("[Debug] Scanner is already running. Aborting new start request.");
+                 return;
+             }
+              if (html5QrCode) {
+                  console.log("[Debug] Cleaning up previous inactive scanner instance.");
+                  html5QrCode = null;
+              }
+
+             readerDiv.style.display = 'block';
+
+             try {
+                 html5QrCode = new Html5Qrcode("reader", { verbose: false });
+                 const config = {
+                     fps: 10,
+                     qrbox: (viewfinderWidth, viewfinderHeight) => {
+                         let minEdgePercentage = 0.7;
+                         let minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+                         let qrboxSize = Math.floor(minEdgeSize * minEdgePercentage);
+                         // console.log(`[Debug] Viewfinder: ${viewfinderWidth}x${viewfinderHeight}, QRBox size: ${qrboxSize}`); // Reduce logs
+                         return { width: qrboxSize, height: qrboxSize };
+                     },
+                     rememberLastUsedCamera: true,
+                     supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+                 };
+
+                 showMessage(scanMessageDiv, '正在請求相機權限...', 'info');
+
+                 html5QrCode.start(
+                     { facingMode: "environment" },
+                     config,
+                     onScanSuccess,
+                     onScanFailure)
+                 .then(() => {
+                     console.log("[Debug] Scanner started successfully.");
+                     if (document.getElementById('scan-tab').classList.contains('active')) {
+                        showMessage(scanMessageDiv, '相機已啟動，請將 QR Code 對準掃描框。', 'info');
+                     }
+                 })
+                 .catch((err) => {
+                     console.error("無法啟動掃描器:", err);
+                      if (document.getElementById('scan-tab').classList.contains('active')) {
+                        showMessage(scanMessageDiv, `無法啟動相機掃描器: ${err}. 請檢查瀏覽器權限設定，並重新整理頁面嘗試。`, 'danger');
+                        readerDiv.innerHTML = `<p class="text-center text-danger p-3">無法啟動相機 <br><small>${err}</small></p>`;
+                      }
+                     html5QrCode = null;
+                 });
+             } catch (e) {
+                 console.error("Error initializing Html5Qrcode:", e);
+                  if (document.getElementById('scan-tab').classList.contains('active')) {
+                    showMessage(scanMessageDiv, `初始化掃描器失敗: ${e}.`, 'danger');
+                  }
+                 html5QrCode = null;
+             }
+        }
+
+         /**
+         * 停止相機掃描器
+         */
+        async function stopScanner() {
+             if (html5QrCode && html5QrCode.isScanning) {
+                 console.log("[Debug] Attempting to stop scanner manually...");
+                 try {
+                     // Store promise before nullifying
+                     const stopPromise = html5QrCode.stop();
+                     html5QrCode = null; // Nullify immediately
+                     await stopPromise; // Wait for stop to complete
+                     console.log("[Debug] QR Code scanning stopped successfully via stopScanner().");
+                 } catch (err) {
+                     console.error("[Debug] Error stopping scanner manually:", err);
+                     // UI might already be cleared by hide.bs.tab event
+                 } finally {
+                     // Ensure UI is cleared even if stop fails or wasn't scanning
+                     readerDiv.innerHTML = '';
+                     hideMessage(scanMessageDiv);
+                     html5QrCode = null; // Ensure it's nullified
+                 }
+             } else {
+                 // If instance exists but not scanning, or doesn't exist
+                 console.log("[Debug] stopScanner() called but scanner was not active or found.");
+                 readerDiv.innerHTML = '';
+                 hideMessage(scanMessageDiv);
+                 html5QrCode = null; // Ensure nullified
+             }
+        }
+
+
+        /**
+         * 處理載入 QR Code 檔案輸入事件 (Populates Form) - Enhanced Error Handling
+         */
+        async function handleLoadQrFile(event) { // Added async
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+            console.log(`[Debug] Loading QR Code from file: ${file.name}`);
+
+            hideMessage(generateMessageDiv);
+            showMessage(generateMessageDiv, '正在讀取圖片並掃描 QR Code...', 'info');
+            loadQrInput.disabled = true; // Disable input while processing
+
+             // Use html5-qrcode to scan the file. Create a temporary instance.
+             const fileScanner = new Html5Qrcode(readerDiv.id, { verbose: false });
+
+             try {
+                 const decodedText = await fileScanner.scanFile(file, /* showImage= */ false);
+                 console.log("[Debug] Scanned successfully from file:", decodedText.substring(0,100) + "...");
+                 showMessage(generateMessageDiv, '圖片掃描成功，正在解析資料...', 'info'); // Update message
+
+                 try {
+                     const jsonData = await parseQrData(decodedText);
+                     showMessage(generateMessageDiv, '資料解析成功，正在填入表單...', 'info'); // Update message
+                     await populateForm(jsonData); // Wait for form population (though it's mostly synchronous)
+                     // Success message is shown inside populateForm
+                     console.log("[Debug] Load QR File process completed successfully.");
+
+                 } catch (parseOrPopulateError) {
+                     console.error("處理載入的 QR 資料失敗:", parseOrPopulateError);
+                     // Provide more specific error from parseQrData or populateForm
+                     showMessage(generateMessageDiv, `處理載入的 QR 資料失敗: ${parseOrPopulateError.message}`, 'danger');
+                 }
+
+             } catch (scanError) {
+                 console.error("從檔案掃描失敗:", scanError);
+                 let errorMessage = '無法從圖片中掃描到 QR Code。';
+                 // Try to provide a more specific error message if available
+                 if (scanError && scanError.message) {
+                     if (scanError.message.includes("NotFoundException")) {
+                          errorMessage = '圖片中未找到 QR Code。';
+                     } else {
+                          errorMessage = `掃描圖片時發生錯誤: ${scanError.message}`;
+                     }
+                 }
+                 showMessage(generateMessageDiv, errorMessage, 'danger');
+             } finally {
+                  // Clean up temporary scanner resources if necessary
+                  // fileScanner.clear(); // Check documentation if needed for file scan
+                  loadQrInput.value = ''; // Reset file input so the same file can be selected again
+                  loadQrInput.disabled = false; // Re-enable input
+             }
+        }
+
+
+        // --- Event Listeners Setup ---
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("[Debug] DOMContentLoaded event fired.");
+            try {
+                generateFormFields(); // Generate form on page load
+            } catch (error) {
+                console.error("Error generating form fields:", error);
+                showMessage(generateMessageDiv, `初始化表單失敗: ${error}`, 'danger');
+            }
+
+            // Form submission
+            if (teaForm) {
+                teaForm.addEventListener('submit', handleFormSubmit);
+            } else { console.error("TeaForm not found"); }
+
+            // Save QR button
+            if (saveQrButton) {
+                saveQrButton.addEventListener('click', handleSaveQr);
+            } else { console.error("SaveQrButton not found"); }
+
+            // Load QR file input
+            if (loadQrInput) {
+                loadQrInput.addEventListener('change', handleLoadQrFile);
+            } else { console.error("LoadQrInput not found"); }
+
+             // Copy JSON button
+             if (copyJsonButton) {
+                copyJsonButton.addEventListener('click', handleCopyJson);
+             } else { console.error("CopyJsonButton not found"); }
+
+             // Generate QR from Link button
+             if (generateLinkQrButton) {
+                generateLinkQrButton.addEventListener('click', handleGenerateLinkQr);
+             } else { console.error("GenerateLinkQrButton not found"); }
+
+
+            // Tab switching logic for scanner activation/deactivation
+            const scanTabElement = document.getElementById('scan-tab');
+            const generateTabElement = document.getElementById('generate-tab');
+
+            if (scanTabElement) {
+                scanTabElement.addEventListener('shown.bs.tab', (event) => {
+                    console.log("[Debug] Scan tab shown.");
+                    startScanner();
+                });
+                 // Stop scanner when scan tab is *about* to be hidden
+                 scanTabElement.addEventListener('hide.bs.tab', (event) => {
+                     console.log("[Debug] Scan tab hide event.");
+                     stopScanner(); // Use async function directly
+                 });
+            } else { console.error("ScanTab element not found"); }
+
+            // No listener needed for generateTab shown, handled by scanTab hide.
+
+            // Also stop scanner if user navigates away or closes tab
+            window.addEventListener('beforeunload', stopScanner);
+
+            console.log("[Debug] Event listeners attached.");
+        });
+
+    </script>
+
 </body>
 </html>
