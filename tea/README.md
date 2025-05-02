@@ -1,70 +1,96 @@
-# 品茶 QR Code 管理系統
 
-> Single-page web application for creating & scanning tea product QR codes  
-> Version **1.4.0** · MIT License
+# 品茶 QR Code 管理系統 (Tea QR Manager)
+
+> Single‑page web app for creating, compressing, linking & scanning tea‑product QR codes  
+> **Version 1.6.2 · 2025‑05‑02 · MIT License**
 
 ---
 
 ## 目錄
-- [介紹](#介紹)  
-- [功能特色](#功能特色)  
-- [快速開始](#快速開始)  
-- [維護要點](#維護要點)  
-- [技術棧](#技術棧)  
+- [介紹](#介紹)  
+- [功能特色](#功能特色)  
+- [快速開始](#快速開始)  
+- [維護要點](#維護要點)  
+- [技術棧](#技術棧)  
+- [瀏覽器支援](#瀏覽器支援)  
+- [授權](#授權)  
 
 ---
 
 ## 介紹
-`index.html` 是一支完全自足的單頁應用（SPA），  
-用來 **輸入 26 項茶葉資訊＋產品圖片網址或上傳檔案**，  
-並產生可掃描的 QR Code；同時內建 **相機掃描器**，  
-對準 QR Code 即可立即解碼並以中文清單＋圖片預覽方式顯示。
+`index.html` 為**單檔**自足 SPA，  
+提供 **「產生｜掃描｜使用說明」**三分頁介面，可：
 
-純前端實作：  
-<kbd>HTML + CSS + JavaScript</kbd>，  
-無需後端即可離線執行。
+1. **輸入／載入** 40+ 項茶葉欄位 + 商品圖片（網址或上傳）。  
+2. **LZ‑String 壓縮 → Base64 → QRious** 產生 QR Code。  
+3. **掃描 QR / 圖檔 / JSON** 立即還原並回填表單。  
+4. **File System Access API** 或 `<a download>` 雙機制下載 PNG。  
+5. **雲端 JSON 模式**：資料超過 QR 容量時，自動轉為連結模式。
+
+純前端實作（HTML + CSS + Vanilla JS），可離線執行。
 
 ---
 
 ## 功能特色
 
-| 類別            | 說明                                                                                         |
-| --------------- | -------------------------------------------------------------------------------------------- |
-| ✏️ 表單輸入     | 一次填寫 **26 個欄位**（茶葉名稱、產區、等級⋯⋯等）＋支援 **產品圖片網址** 或 **檔案上傳**。         |
-| 📷 QR Code 產生 | JSON → **LZ-String 壓縮 Base64** → QRious 生成，<br>自動檢測容量上限 **2 953 bytes**，超限自動 fallback。 |
-| 💾 QR Code 儲存 | 支援 **File System Access API**，<br>檔案對話框直存；不支援時自動回退傳統下載。                   |
-| 🔄 QR Code 載入 | 檔案選擇器解析 QR 圖片，<br>先嘗試 `decompressFromBase64()`，失敗再 `atob()`，並回填表單。           |
-| 🔍 QR Code 掃描 | 使用 **html5-qrcode**，優先後鏡頭，<br>可設定固定 `qrbox` 大小、記憶上次相機，<br>掃描後中文列表顯示＋圖片預覽。 |
-| 🎨 視覺設計     | 客製茶葉色票、有襯線字體、圓角卡片、進場動畫，<br>Debug 區可收合。                               |
-| 🛠️ 易於維護    | 欄位清單、中文對照、主題色票集中管理，<br>註解標示核心邏輯，format／分段易於閱讀與擴充。         |
+| 分類 | 說明 |
+| ---- | ---- |
+| ✏️ 表單輸入 | 40+ 欄位分為 **基本 / 常用 / 進階 / 專家** 四大段落，支援圖片上傳預覽。 |
+| 📦 壓縮演算法 | JSON → `LZString.compressToUint8Array()` → Base64；再以 QRious 產生 **Version 40‑M** QR (≈ 2 953 bytes)。 |
+| ☁️ 雲端模式 | 壓縮後仍超額時，介面提示並顯示 *原始 JSON*，引導上傳 Gist / Pastebin，再以「Raw URL」產生 **連結 QR**。 |
+| 💾 QR 儲存 | **File System Access API**優先；不支援時自動回退為 `<a download>` 下載 PNG。 |
+| 🔄 QR 載入 | 支援載入 **QR 圖檔** 或 **JSON 檔**（原始 / 壓縮 `{v,d}` 格式）。 |
+| 📷 即時掃描 | **html5‑qrcode 2.3.8** 支援多裝置相機，掃描後以中文清單＋圖片預覽呈現。 |
+| 🛡️ 隱私安全 | 所有壓縮、解壓、掃描、下載均在瀏覽器本地執行；無後端 API。 |
+| 🎨 視覺規劃 | Bootstrap 5.3.3 + Noto Serif TC / Playfair Display，茶綠配色、圓角卡片、Tooltip/Validation UX。 |
 
 ---
 
 ## 快速開始
-1. 下載或複製本專案，確認路徑內含 `index.html`。  
-2. **雙擊** 或以 HTTP(S)/localhost 開啟 `index.html`（建議 Chrome/Edge，HTTP(S) 才能啟用相機）。  
-3. 切至 **「產生 QR Code」** 分頁，**填寫 26 項欄位** 並點選 **「產生 QR Code」**。  
-4. 如需儲存，點擊 **「儲存 QR Code」**；如需載入本地 QR 圖片，點擊 **「載入 QR Code」**。  
-5. 切至 **「掃描 QR Code」** 分頁，授權相機後對準 QR，即可即時解碼並顯示資料。
+1. 下載或複製本專案，直接開啟 `index.html`（建議 Chrome / Edge）。  
+2. **產生 QR Code**  
+   - 填寫表單 → 點 **「產生 QR」**  
+   - 若顯示「資料量過大」視窗，依指示將 JSON 上傳雲端並貼回 URL。  
+3. **儲存**：按 **「儲存 QR Code」**　(PNG)。  
+4. **掃描**：切至「掃描 QR Code」分頁並允許相機權限。  
+5. **載入**：使用「載入 QR Code」(圖檔) 或「載入 JSON」匯入既有資料。
+
+> 離線使用：將 `index.html` 存至本機並開啟即可；唯相機功能需 HTTPS/localhost。
 
 ---
 
 ## 維護要點
-- **新增/刪減欄位時**：同步更新 HTML `<form>`、JS `fields[]`、`labelMap{}`。  
-- **壓縮/解壓邏輯**：集中在 `submit` 與 `load-btn` 事件處理，調整時留意 fallback 順序。  
-- **File System Access**：若需支援其他檔案類型，擴充 `showSaveFilePicker(…types…)` 設定。  
-- **QRious 參數**：如需調整尺寸或容錯等級 (`level`)，請同步更新初始化參數。  
+| 區塊 | 注意事項 |
+| ---- | -------- |
+| `fieldConfig[]` | 新增 / 刪除欄位須同步 `id`、`label`、`section`、`col`。 |
+| 壓縮 / 解壓 | 集中於 `handleFormSubmit()`、`restoreFromQrOrJson()`；調整順序時需維持 `fallback → decompress → parse` 流程。 |
+| File System API | 如需擴充其他 MIME，修改 `showSaveFilePicker({types})`。 |
+| QR 儲存尺寸 | 修改 `QRious({ size, level, padding })` 同步調整 `<canvas>` 寬高。 |
+| Changelog | 置於 `index.html` 檔頭註解，發行時記得遞增版本。 |
 
 ---
 
 ## 技術棧
-- **Bootstrap 5.3** — 響應式佈局與元件  
-- **QRious 4.0.2** — 前端 QR Code 生成  
-- **html5-qrcode 2.3.7** — 相機掃描與解碼  
-- **LZ-String 1.4.4** — JSON 壓縮/解壓  
-- **Google Fonts** — Noto Serif TC、Playfair Display  
-- **Vanilla JS / CSS 3** — 無其他框架依賴  
+- **Bootstrap 5.3.3** — 響應式 UI 元件  
+- **Bootstrap Icons 1.11** — 向量圖示  
+- **QRious 4.0.2** — 前端 QR 生成  
+- **html5‑qrcode 2.3.8** — 相機掃描  
+- **LZ‑String 1.4.4** — JSON 壓縮/解壓  
+- **Google Fonts** — Noto Serif TC, Playfair Display  
+- **Vanilla JS / CSS 3**
 
 ---
 
-> _歡迎提交 Issue 或 Pull Request，一起優化此專案！_
+## 瀏覽器支援
+- **Chrome / Edge 96+** — 完整支援 File System Access API  
+- **Firefox 95+** — 自動回退為 `<a download>` 下載  
+- **iOS / Android** 主流瀏覽器均可掃描、載入 JSON
+
+---
+
+## 授權
+Released under the **MIT License** — feel free to fork & improve!
+
+---
+
+> 最後更新：2025‑05‑02
