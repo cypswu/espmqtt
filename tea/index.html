@@ -2,7 +2,7 @@
 ===============================================================================
   檔案名稱：index.html
   專案名稱：品茶 QR Code 管理系統
-  版本號碼：v1.6.2 ─ 2025-05-02
+  版本號碼：v1.6.4 ─ 2025-05-04
 ===============================================================================
 
 【功能摘要】
@@ -30,6 +30,8 @@
 【License】MIT
 
 【修訂紀錄】
+  ▸ v1.6.4 ─ 2025-05-04
+      - 「掃描 QR Code」頁籤增加一個「由此載入 JSON 檔案顯示」的按鈕
   ▸ v1.6.2 ─ 2025-05-02
       - 重構註解：將多餘 console.log 註解，保留 warn/error
       - 程式掃過：確認壓縮/解壓、QR 流程與 v1.6.1 一致
@@ -45,7 +47,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>品茶 QR Code 管理系統 v1.6.2</title>
+    <title>品茶 QR Code 管理系統</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
 
@@ -453,19 +455,29 @@
                          <div id="scanMessage" class="alert alert-info mt-3 d-none" role="alert">
                             正在請求相機權限...
                         </div>
-                     </div>
+
+                        <div class="mt-3">
+                             <label for="loadJsonInputScan" class="btn btn-outline-secondary btn-sm">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-file-earmark-arrow-up-fill me-1" viewBox="0 0 16 16">
+                                   <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0M9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1M6.354 9.854a.5.5 0 0 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 8.207V12.5a.5.5 0 0 1-1 0V8.207z"/>
+                                 </svg>
+                                 由此載入 JSON 檔案顯示
+                             </label>
+                             <input type="file" id="loadJsonInputScan" accept=".json" style="display:none;">
+                         </div>
+                         </div>
                  </div>
 
                  <div id="scanResult" class="mt-4 card" style="display: none;">
                      <div class="card-body">
-                        <h3 class="h5 mb-3">掃描結果:</h3>
+                        <h3 class="h5 mb-3">掃描/載入結果:</h3>
                         <ul id="scanResultList" class="list-group list-group-flush">
-                            </ul>
+                        </ul>
                      </div>
                  </div>
 
             </div>
-
+            
             <div class="tab-pane fade" id="helpTabPane" role="tabpanel" aria-labelledby="help-tab" tabindex="0">
                 <div class="p-3">
 
@@ -539,7 +551,7 @@
                   </ul>
 
                   <p class="text-muted small mt-4">
-                    最後更新：2025-05-02 | © 2025 <em>cypswu</em>
+                    最後更新：2025-05-04 | © 2025 <em>cypswu</em>
                   </p>
 
                 </div>
@@ -627,6 +639,7 @@
         const readerDiv = document.getElementById('reader');
         const generateTab = document.getElementById('generate-tab');
         const scanTab = document.getElementById('scan-tab');
+        const loadJsonInputScan = document.getElementById('loadJsonInputScan');
         const cloudModeSection = document.getElementById('cloudModeSection');
         const jsonDataDisplay = document.getElementById('jsonDataDisplay');
         const copyJsonButton = document.getElementById('copyJsonButton');
@@ -1845,6 +1858,75 @@
             reader.readAsText(file); // Read file as text
         }
 
+        /**
+         * 處理在「掃描」頁籤載入 JSON 檔案的事件 (顯示結果於 Scan Tab)
+         */
+        function handleLoadJsonForScanTab(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                return; // No file selected
+            }
+            // console.log(`[Debug Scan Tab] Loading JSON from file: ${file.name}`);
+
+            hideMessage(scanMessageDiv); // 使用 Scan Tab 的訊息區
+            showMessage(scanMessageDiv, '正在讀取 JSON 檔案...', 'info');
+            scanResultDiv.style.display = 'none'; // 隱藏舊結果
+            scanResultList.innerHTML = ''; // 清空舊列表
+            if (loadJsonInputScan) loadJsonInputScan.disabled = true; // 禁用按鈕
+
+            const reader = new FileReader();
+
+            reader.onload = async (e) => { // Make async if displayScanResult becomes async
+                try {
+                    const text = e.target.result;
+                    let dataToDisplay;
+
+                    // 嘗試解析 JSON (支援原始 JSON 或 壓縮格式 {v:1, d:"..."})
+                    const parsedJson = JSON.parse(text);
+                    if (parsedJson && typeof parsedJson === 'object' && parsedJson.v === 1 && typeof parsedJson.d === 'string') {
+                        // console.log("[Debug Scan Tab] Detected minimal-JSON format in loaded file, decompressing...");
+                        const decompressed = LZString.decompressFromBase64(parsedJson.d);
+                        if (!decompressed) throw new Error('從檔案解壓縮 minimal-JSON 失敗');
+                        dataToDisplay = JSON.parse(decompressed);
+                    } else {
+                        // console.log("[Debug Scan Tab] Assuming raw JSON format in loaded file.");
+                        dataToDisplay = parsedJson; // 假設是原始 JSON
+                    }
+
+                    // *** 使用現有的 displayScanResult 函式顯示在第二頁 ***
+                    displayScanResult(dataToDisplay);
+                    showMessage(scanMessageDiv, '已成功從檔案載入並顯示資料。', 'success');
+
+                } catch (err) {
+                    console.error("載入或處理 JSON 檔案失敗 (Scan Tab):", err);
+                    let userMsg = '載入 JSON 失敗：檔案格式錯誤或無法解析。';
+                    if (err instanceof SyntaxError) {
+                        userMsg = `載入 JSON 失敗：JSON 語法錯誤 (${err.message})。`;
+                    } else if (err.message && err.message.includes('解壓縮')) {
+                        userMsg = `載入 JSON 失敗：${err.message}。`;
+                    }
+                    showMessage(scanMessageDiv, userMsg, 'danger');
+                    scanResultDiv.style.display = 'none'; // 確保出錯時結果區域是隱藏的
+                } finally {
+                    // Reset file input regardless of success/failure
+                    if (loadJsonInputScan) {
+                        loadJsonInputScan.value = '';
+                        loadJsonInputScan.disabled = false;
+                    }
+                }
+            };
+
+            reader.onerror = (error) => {
+                 console.error("讀取 JSON 檔案時發生錯誤 (Scan Tab):", error);
+                 showMessage(scanMessageDiv, '讀取 JSON 檔案時發生錯誤。', 'danger');
+                 if (loadJsonInputScan) {
+                     loadJsonInputScan.value = '';
+                     loadJsonInputScan.disabled = false;
+                 }
+            };
+
+            reader.readAsText(file); // Read file as text
+        }        
 
         // --- Event Listeners Setup ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -1890,8 +1972,12 @@
 
              if (generateLinkQrButton) {
                 generateLinkQrButton.addEventListener('click', handleGenerateLinkQr);
-             } else { console.error("Error: generateLinkQrButton element not found."); }
+            } else { console.error("Error: generateLinkQrButton element not found."); }
 
+            if (loadJsonInputScan) {
+                loadJsonInputScan.addEventListener('change', handleLoadJsonForScanTab);
+            } else { console.error("Error: loadJsonInputScan element not found."); }
+            
 
             // Tab switching logic for scanner activation/deactivation
             const scanTabElement = document.getElementById('scan-tab');
