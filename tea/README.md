@@ -2,7 +2,7 @@
 # 品茶 QR Code 管理系統 (Tea QR Manager)
 
 > Single‑page web app for creating, compressing, linking & scanning tea‑product QR codes  
-> **Version 1.6.2 · 2025‑05‑02 · MIT License**
+> **Version 1.6.4 · 2025‑05‑02 · MIT License**
 
 ---
 
@@ -93,4 +93,4 @@ Released under the **MIT License** — feel free to fork & improve!
 
 ---
 
-> 最後更新：2025‑05‑02
+> 最後更新：2025‑05‑04
