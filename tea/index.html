@@ -2,7 +2,7 @@
 ===============================================================================
   檔案名稱：index.html
   專案名稱：品茶 QR Code 管理系統
-  版本號碼：v1.6.4 ─ 2025-05-04
+  版本號碼：v1.6.5 ─ 2025-05-08 
 ===============================================================================
 
 【功能摘要】
@@ -30,6 +30,10 @@
 【License】MIT
 
 【修訂紀錄】
+  ▸ v1.6.5 ─ 2025-05-08 
+      - 下載 PNG 內嵌茶名；畫面即時顯示茶名
+      - 檔名保留中文，只過濾系統保留字
+      - handleSaveQr() 與 fallback 下載改用 buildQrWithCaptionCanvas()
   ▸ v1.6.4 ─ 2025-05-04
       - 「掃描 QR Code」頁籤增加一個「由此載入 JSON 檔案顯示」的按鈕
   ▸ v1.6.2 ─ 2025-05-02
@@ -399,6 +403,7 @@
                          <div class="card-body">
                              <h3 class="h5 mb-3">產生的 QR Code:</h3>
                              <canvas id="qrCanvas" width="420" height="420"></canvas>
+                             <p id="qrTeaName" class="fw-bold mt-2"></p>
                              <div id="qrCodeImageContainer"></div> <button id="saveQrButton" class="btn btn-success mt-3">
                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-download me-1" viewBox="0 0 16 16"> <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/> <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708z"/> </svg>
                                  儲存 QR Code
@@ -851,6 +856,36 @@
         }
 
         /**
+         * 將 QR Canvas 與茶名合併輸出成新 Canvas
+         * @param {HTMLCanvasElement} srcCanvas - 既有的 QR Canvas
+         * @param {string} caption   - 要顯示的茶名
+         * @returns {HTMLCanvasElement}
+         */
+        function buildQrWithCaptionCanvas(srcCanvas, caption) {
+          const fontSize   = 24;           // 字體大小 (px)
+          const paddingTop = 12;           // 文字與 QR 的間距
+          const extraH     = caption ? fontSize + paddingTop * 2 : 0;
+
+          const c = document.createElement('canvas');
+          c.width  = srcCanvas.width;
+          c.height = srcCanvas.height + extraH;
+
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, c.width, c.height);        // 白底
+          ctx.drawImage(srcCanvas, 0, 0);               // 畫 QR
+
+          if (caption) {
+            ctx.font = `bold ${fontSize}px "Noto Sans", sans-serif`;
+            ctx.fillStyle = '#000';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(caption, c.width / 2, srcCanvas.height + paddingTop);
+          }
+          return c;
+        }
+        
+        /**
          * 產生 QR Code (使用 Canvas)
          * @param {string} data - 要編碼的資料 (壓縮後的 Base64 字串或 URL)
          * @param {boolean} isUrl - 標示 data 是否為 URL (目前主要影響 log)
@@ -879,6 +914,17 @@
                 });
 
                 qrCodeResultDiv.style.display = 'block';
+                // 更新畫面上的茶名
+                const captionEl = document.getElementById('qrTeaName');
+                if (captionEl) {
+                  const teaNameTxt = document.getElementById('teaName')?.value.trim();
+                  if (teaNameTxt) {
+                      captionEl.textContent = teaNameTxt;
+                      captionEl.style.display = 'block';
+                  } else {
+                      captionEl.style.display = 'none';
+                  }
+                }
                 qrCodeResultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 // console.log("[Debug] QR Code generated successfully on canvas.");
 
@@ -980,7 +1026,7 @@
 
             // 1. 建議檔名（來自茶名）
             const teaName = document.getElementById('teaName')?.value.trim();
-            const baseName = `tea_qrcode${teaName ? '_' + teaName.replace(/[^a-z0-9]/gi, '_').toLowerCase() : ''}`; // Sanitize filename
+            const baseName = `tea_${teaName ? teaName.replace(/[\\/:*?"<>|]/g, '') : 'unknown'}`;
             const suggestedName = baseName + '.png';
 
             // 如果支援 File System Access API，就用原生對話框
@@ -997,10 +1043,8 @@
                     const writable = await fileHandle.createWritable();
 
                     // 取得 Blob (Always from canvas in current implementation)
-                    let blob;
-                    if (currentQrDataType === 'canvas' && qrCanvas) {
-                        blob = await new Promise(res => qrCanvas.toBlob(res, 'image/png'));
-                    }
+                    const composite = buildQrWithCaptionCanvas(qrCanvas, teaName);
+                    let blob = await new Promise(res => composite.toBlob(res, 'image/png'));                    
                     // else if (currentQrDataType === 'image' && qrCodeImageContainer.firstChild) { // Fallback if image was used
                     //     const resp = await fetch(qrCodeImageContainer.firstChild.src);
                     //     blob = await resp.blob();
@@ -1032,13 +1076,13 @@
                     // console.log("[Debug] 使用者取消檔名輸入");
                     return;
                 }
-                const filename = inputName.toLowerCase().endsWith('.png') ? inputName : inputName + '.png';
+                const filename = inputName.endsWith('.png') ? inputName : inputName + '.png';
 
                 // 3. 產生 data URL (Always from canvas)
                 let dataUrl;
                 if (currentQrDataType === 'canvas' && qrCanvas) {
                     try {
-                        dataUrl = qrCanvas.toDataURL('image/png');
+                        dataUrl = buildQrWithCaptionCanvas(qrCanvas, teaName).toDataURL('image/png');
                     } catch (e) {
                         console.error("從 Canvas 匯出失敗：", e);
                         showMessage(generateMessageDiv, '無法從 Canvas 匯出 QR Code。', 'danger');
@@ -1106,7 +1150,7 @@
 
           // 1. 建議檔名（從茶名或固定前綴產生）
           const teaName    = document.getElementById('teaName')?.value.trim();
-          const baseName   = `qr_data${teaName ? '_' + teaName.replace(/[^a-z0-9]/gi, '_').toLowerCase() : ''}`; // Sanitize filename
+          const baseName   = `tea_${teaName ? teaName.replace(/[\\/:*?"<>|]/g, '') : 'unknown'}`;
           const suggestedName = baseName + '.json';
 
           // 2. Blob 準備: 取回 textarea 的原始 JSON，壓縮並包 minimal JSON（加版本號 v）
@@ -1157,9 +1201,7 @@
             // console.log("[Debug] 使用者取消檔名輸入");
             return;
           }
-          const filename = inputName.toLowerCase().endsWith('.json')
-                           ? inputName
-                           : inputName + '.json';
+          const filename = inputName.endsWith('.json') ? inputName : inputName + '.json';
 
           const url = URL.createObjectURL(blob);
           const a   = document.createElement('a');
