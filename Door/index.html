@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>ESP32-C3 門控面板｜v2.8.0-compat</title>
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b1020">
+<link rel="icon" href="icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function (err) {
+      console.error("SW register failed:", err);
+    });
+  });
+}
+</script>
+
+<!--
+v2.8.0-compat — 專業 UI/UX 版（相容、單檔、不依賴外網）
+- 本地載入 mqtt.min.js
+- 手機友善：大按鈕、單欄優先、卡片分區、固定頂欄（App Bar）
+- 清晰註釋：每段程式碼說明用途
+- 功能保留：可編輯主題模板（{dev}）、Profiles 多組設定（IndexedDB）、localStorage 即時保存
+- 連線狀態：膠囊燈（Connected/Disconnected），日誌完整顯示
+-->
+
+<style>
+  /* =========================
+     基礎主題（深色系、專業感）
+  ========================= */
+  :root{
+    --bg:#0b1020;       /* 背景 */
+    --card:#121735;     /* 卡片 */
+    --ink:#e9f0ff;      /* 主要文字 */
+    --muted:#9fb0c9;    /* 次要文字 */
+    --line:#233052;     /* 邊界線 */
+    --accent:#6ab0ff;   /* 主色 */
+    --accent-ink:#07192d;
+    --ok:#2bd47d;
+    --warn:#ffb648;
+    --err:#ff6b6b;
+    --btn:#1a2447;      /* 次要按鈕底色 */
+  }
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans TC",sans-serif;}
+  *{box-sizing:border-box}
+
+  /* =========================
+     App Bar（固定頂部）
+  ========================= */
+  .appbar{
+    position:sticky; top:0; z-index:20;
+    background:linear-gradient(180deg,rgba(11,16,32,.95),rgba(11,16,32,.7));
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  .appbar-inner{
+    max-width:1080px; margin:0 auto; padding:10px 14px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:900; letter-spacing:.3px}
+  .brand .logo{width:28px; height:28px; border-radius:8px; background:linear-gradient(135deg,var(--accent),#3a7bff);}
+  .brand small{color:var(--muted); font-weight:600}
+  .spacer{flex:1}
+
+  .status-pill{display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; border:1px solid var(--line); background:#0d142b}
+  .dot{width:10px; height:10px; border-radius:50%; background:#546}
+  .dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.err{background:var(--err)}
+  .status-text{min-width:92px}
+
+  .btn{cursor:pointer; user-select:none; border:1px solid var(--line); background:var(--btn); color:var(--ink);
+       border-radius:12px; padding:10px 14px; font-weight:800; box-shadow:0 6px 18px rgba(0,0,0,.18);
+       transition:transform .05s ease, background .2s ease, border-color .2s ease}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:var(--accent); color:var(--accent-ink); border-color:transparent}
+  .btn.ghost{background:#0e1530}
+  .btn.warn{background:var(--warn); color:#1a1200; border-color:transparent}
+
+  /* =========================
+     版面容器 & 卡片
+  ========================= */
+  .wrap{max-width:1080px; margin:16px auto; padding:12px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:18px; padding:16px 18px; box-shadow:0 10px 28px rgba(0,0,0,.25); margin-bottom:14px}
+  .title{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
+  .title h3{margin:0; font-size:18px; letter-spacing:.2px}
+  .muted{color:var(--muted)}
+  .small{font-size:13px}
+
+  /* 表單 */
+  label{display:block; font-size:12px; color:var(--muted); margin:2px 0 6px}
+  input[type=text], select{
+    width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:#0d142b; color:var(--ink); outline:none; font-size:16px;
+  }
+  .row{display:flex; gap:12px; flex-wrap:wrap}
+  .row>*{flex:1 1 220px; min-width:180px}
+
+  /* 操作區 */
+  .keys{display:grid; gap:12px; grid-template-columns:repeat(2,1fr)}
+  @media(min-width:640px){ .keys{grid-template-columns:repeat(4,1fr)} }
+  .key{padding:16px; font-size:18px}
+  .key.good{background:var(--ok); color:#082416; border-color:transparent}
+  .key.bad{background:var(--err); color:#220b0b; border-color:transparent}
+  .key.neutral{background:#152142}
+
+  .stack{display:flex; gap:10px; flex-wrap:wrap}
+  .grow{flex:1}
+
+  /* 日誌 */
+  .log{height:44vh; overflow:auto; background:#0d142b; border:1px solid var(--line); border-radius:14px; padding:10px 12px; font:14px/1.45 ui-monospace,Consolas,Menlo,monospace}
+  .line{display:flex; gap:10px; padding:6px 4px; border-bottom:1px dashed #213151}
+  .time{color:#8fb4ff; min-width:150px}
+  .tag{font-size:12px; padding:2px 8px; border-radius:999px}
+  .tag.info{background:#22355d; color:#cfe0ff}
+  .tag.rx{background:#1f3a2a; color:#b8f0c6}
+  .tag.tx{background:#4a321d; color:#ffe0ad}
+  .tag.err{background:#4a1f1f; color:#ffd0d0}
+
+  /* 設定區工具列 */
+  .toolbar{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+
+  /* 小提示 */
+  .hint{background:#0d142b; border:1px dashed var(--line); border-radius:12px; padding:10px 12px}
+  .kbd{font:12px/1 ui-monospace,Consolas,Menlo,monospace; background:#1a2344; color:#d9e7ff; border:1px solid var(--line); border-radius:6px; padding:2px 6px}
+  footer{opacity:.7; text-align:center; padding:16px 8px; font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- =========================
+     App Bar：標題 + 連線狀態 + 快速鍵
+========================= -->
+<header class="appbar">
+  <div class="appbar-inner">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div>ESP32-C3 Gate Panel&nbsp;<small>v2.8.0-compat</small></div>
+    </div>
+    <div class="spacer"></div>
+
+    <!-- 連線狀態膠囊 -->
+    <div class="status-pill" title="目前連線狀態">
+      <span id="dot" class="dot err" aria-hidden="true"></span>
+      <span id="lblStat" class="status-text" aria-live="polite">Disconnected</span>
+    </div>
+
+    <!-- 快速操作 -->
+    <button id="btnConn" class="btn primary" title="連線 (C)">連線</button>
+    <button id="btnDisc" class="btn ghost"  title="中斷 (C)">中斷</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- A. 連線設定 -->
+  <section class="card">
+    <div class="title">
+      <h3>連線設定</h3>
+      <div class="small muted">以 <span class="kbd">wss://</span> 開頭的 MQTT 端點（建議使用自家 WSS）</div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Broker (WSS)</label>
+        <input id="inpHost" type="text" value="wss://test.mosquitto.org:8081/mqtt" placeholder="wss://your-broker:port/mqtt">
+      </div>
+      <div>
+        <label>裝置 ID（可留空）</label>
+        <input id="inpDev" type="text" placeholder="例：gateA-01；留空則省略 {dev} 層">
+      </div>
+      <div>
+        <label>Client ID</label>
+        <input id="inpCid" type="text" placeholder="空白會自動產生">
+      </div>
+    </div>
+    <div class="hint small" style="margin-top:10px">
+      小訣竅：公司/學校網路擋 8081 時，改用貴單位的 <b>443/WSS</b> 端點；若曾開過舊版，請硬重新整理（Ctrl/Cmd+Shift+R）。
+    </div>
+  </section>
+
+  <!-- B. 主題模板 -->
+  <section class="card">
+    <div class="title">
+      <h3>主題模板</h3>
+      <div class="small muted">支援變數 <span class="kbd">{dev}</span>（留空會自動去掉該層）</div>
+    </div>
+    <div class="row">
+      <div>
+        <label>訂閱主題（狀態）</label>
+        <input id="tplSub" type="text" value="esp32c3/{dev}/status" placeholder="例：esp32c3/{dev}/status">
+      </div>
+      <div>
+        <label>發佈主題（控制）</label>
+        <input id="tplPub" type="text" value="esp32c3/{dev}/cmd" placeholder="例：esp32c3/{dev}/cmd 或 esp32c3/cmd">
+      </div>
+    </div>
+    <div class="hint small" style="margin-top:8px">
+      目前實際訂閱：<span class="kbd" id="subTopic">esp32c3/status</span>　|　目前實際發佈：<span class="kbd" id="pubTopic">esp32c3/cmd</span>
+    </div>
+  </section>
+
+  <!-- C. 設定檔（Profiles） -->
+  <section class="card">
+    <div class="title">
+      <h3>設定檔（Profiles）</h3>
+      <div class="small muted">保存多組配置到 IndexedDB；可匯出/匯入 JSON</div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>設定檔名稱</label>
+        <input id="profName" type="text" placeholder="例：工廠一樓 - 西側門">
+      </div>
+      <div>
+        <label>目前設定檔</label>
+        <select id="profSelect"></select>
+      </div>
+    </div>
+
+    <div class="toolbar" style="margin-top:10px">
+      <button id="btnProfSave" class="btn">儲存/覆寫</button>
+      <button id="btnProfDelete" class="btn ghost">刪除</button>
+      <button id="btnProfExport" class="btn ghost">匯出 JSON</button>
+      <button id="btnProfImport" class="btn ghost">匯入 JSON</button>
+      <input id="fileImport" type="file" accept="application/json" style="display:none" />
+      <div class="spacer"></div>
+      <button id="btnClear" class="btn ghost" title="清空下方訊息紀錄">清除紀錄</button>
+    </div>
+
+    <div class="small muted" style="margin-top:8px">
+      切換設定檔會立即套用欄位並（若已連線）自動退訂舊主題、訂閱新主題。
+    </div>
+  </section>
+
+  <!-- D. 操作鍵（門控） -->
+  <section class="card">
+    <div class="title">
+      <h3>門控操作</h3>
+      <div class="small muted">按鈕皆發佈到「發佈主題」渲染後的實際主題</div>
+    </div>
+    <div class="keys">
+      <button id="btnD1O" class="btn key good">外門開（D1O）</button>
+      <button id="btnD1C" class="btn key bad">外門關（D1C）</button>
+      <button id="btnD2I" class="btn key neutral">內門開・關（D2I）</button>
+      <button id="btnD2S" class="btn key ghost">內門停止（D2S）</button>
+    </div>
+  </section>
+
+  <!-- E. 測試/自訂 -->
+  <section class="card">
+    <div class="title"><h3>測試與自訂訊息</h3><div class="small muted">LED on/off 或自訂 payload</div></div>
+    <div class="stack" style="margin-bottom:12px">
+      <button id="btnOn"  class="btn">LED 開（on）</button>
+      <button id="btnOff" class="btn ghost">LED 關（off）</button>
+    </div>
+    <div class="stack">
+      <input id="inpMsg" type="text" class="grow" placeholder="例如：toggle / 任意字串">
+      <button id="btnSend" class="btn primary">送出</button>
+    </div>
+  </section>
+
+  <!-- F. 訊息紀錄 -->
+  <section class="card">
+    <div class="title">
+      <h3>訊息紀錄</h3>
+      <div class="small muted">最多保留 500 筆；新訊息自動捲動</div>
+    </div>
+    <div id="log" class="log" aria-live="polite"></div>
+  </section>
+
+  <footer>© 2025 Gate Panel — 專為 ESP32-C3 門控打造 · 行動裝置友善 · v2.8.0-compat</footer>
+</main>
+
+<!-- 本地 mqtt.min.js（請與此檔放同資料夾） -->
+<script src="mqtt.min.js"></script>
+<script>
+/* ================================================================
+   v2.8.0-compat  — 互動邏輯
+   設計理念：小而穩、可離線保存、對手機友善、清晰日誌
+================================================================ */
+document.addEventListener('DOMContentLoaded', function(){
+
+  /* ---------- 0) DOM 快速存取 ---------- */
+  function $(id){ var x=document.getElementById(id); if(!x){ console.log('缺少元素', id); } return x; }
+  var el = {
+    host:$('inpHost'), dev:$('inpDev'), cid:$('inpCid'),
+    tplSub:$('tplSub'), tplPub:$('tplPub'),
+    subTopic:$('subTopic'), pubTopic:$('pubTopic'),
+    dot:$('dot'), stat:$('lblStat'),
+    btnConn:$('btnConn'), btnDisc:$('btnDisc'), btnClear:$('btnClear'),
+    btnD1O:$('btnD1O'), btnD1C:$('btnD1C'), btnD2I:$('btnD2I'), btnD2S:$('btnD2S'),
+    btnOn:$('btnOn'), btnOff:$('btnOff'), inpMsg:$('inpMsg'), btnSend:$('btnSend'),
+    log:$('log'),
+    profName:$('profName'), profSelect:$('profSelect'),
+    btnProfSave:$('btnProfSave'), btnProfDelete:$('btnProfDelete'),
+    btnProfExport:$('btnProfExport'), btnProfImport:$('btnProfImport'),
+    fileImport:$('fileImport')
+  };
+
+  /* ---------- 1) 小工具：時間戳 & 日誌 ---------- */
+  function pad(n){ n=(''+n); return n.length<2?'0'+n:n; }
+  function now(){
+    var d=new Date();
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '
+         + pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
+  }
+  function log(type, text){
+    if(!el.log) return;
+    var line=document.createElement('div'); line.className='line';
+    var t=document.createElement('span'); t.className='time'; t.textContent='['+now()+']';
+    var tag=document.createElement('span'); tag.className='tag '+(type||'info'); tag.textContent=(type||'info').toUpperCase();
+    var body=document.createElement('div'); body.textContent=text;
+    line.appendChild(t); line.appendChild(tag); line.appendChild(body);
+    el.log.appendChild(line);
+    while(el.log.children.length>500){ el.log.removeChild(el.log.firstChild); }
+    el.log.scrollTop=el.log.scrollHeight;
+  }
+  window.onerror = function(msg){ log('err','頁面錯誤：'+msg); };
+
+  /* ---------- 2) 主題模板渲染（支援 {dev}；空 dev 自動移除該層） ---------- */
+  function renderTpl(t){
+    var dev=(el.dev && el.dev.value)? el.dev.value.trim() : '';
+    var out=String(t||'').replace(/\{dev\}/g, dev?dev:''); // 用正則，避免舊瀏覽器不支援 replaceAll
+    out=out.replace(/\/{2,}/g,'/').replace(/\/$/,'');      // 清理多餘斜線與結尾斜線
+    return out || 'esp32c3/status';
+  }
+  function refreshTopics(){
+    if(el.subTopic) el.subTopic.textContent = renderTpl(el.tplSub && el.tplSub.value);
+    if(el.pubTopic) el.pubTopic.textContent = renderTpl(el.tplPub && el.tplPub.value);
+  }
+
+  /* ---------- 3) 本地即時保存（localStorage） ---------- */
+  function saveLocal(){
+    if(!window.localStorage) return;
+    localStorage.setItem('mqtt.host', el.host && el.host.value || '');
+    localStorage.setItem('mqtt.dev',  el.dev  && el.dev.value  || '');
+    localStorage.setItem('mqtt.cid',  el.cid  && el.cid.value  || '');
+    localStorage.setItem('mqtt.tplSub', el.tplSub && el.tplSub.value || '');
+    localStorage.setItem('mqtt.tplPub', el.tplPub && el.tplPub.value || '');
+  }
+  function loadLocal(){
+    if(!window.localStorage) return;
+    var v;
+    v=localStorage.getItem('mqtt.host');   if(v && el.host) el.host.value=v;
+    v=localStorage.getItem('mqtt.dev');    if(v!==null && el.dev) el.dev.value=v;
+    v=localStorage.getItem('mqtt.cid');    if(el.cid) el.cid.value = v || ('gp-'+Math.random().toString(16).slice(2));
+    v=localStorage.getItem('mqtt.tplSub'); if(v && el.tplSub) el.tplSub.value=v;
+    v=localStorage.getItem('mqtt.tplPub'); if(v && el.tplPub) el.tplPub.value=v;
+    refreshTopics();
+  }
+
+  /* ---------- 4) IndexedDB（Profiles） ---------- */
+  var DB='gate_cfg_db', VER=2, STORE='kv', KEY_NAMES='profileNames';
+  function dbOpen(){
+    return new Promise(function(res,rej){
+      var rq=indexedDB.open(DB, VER);
+      rq.onupgradeneeded=function(e){ var db=e.target.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE); };
+      rq.onsuccess=function(e){ res(e.target.result); };
+      rq.onerror=function(e){ rej(e.target.error); };
+    });
+  }
+  function kvSet(k,v){ return dbOpen().then(db=>new Promise((res,rej)=>{ var tx=db.transaction([STORE],'readwrite'); var st=tx.objectStore(STORE); var r=st.put(v,k); r.onsuccess=()=>res(true); r.onerror=ev=>rej(ev.target.error); })); }
+  function kvGet(k){ return dbOpen().then(db=>new Promise((res,rej)=>{ var tx=db.transaction([STORE],'readonly'); var st=tx.objectStore(STORE); var r=st.get(k); r.onsuccess=()=>res(r.result); r.onerror=ev=>rej(ev.target.error); })); }
+  function kvDel(k){ return dbOpen().then(db=>new Promise((res,rej)=>{ var tx=db.transaction([STORE],'readwrite'); var st=tx.objectStore(STORE); var r=st.delete(k); r.onsuccess=()=>res(true); r.onerror=ev=>rej(ev.target.error); })); }
+
+  function cfgCollect(){ return { host:el.host?.value||'', dev:el.dev?.value||'', cid:el.cid?.value||'', tplSub:el.tplSub?.value||'esp32c3/{dev}/status', tplPub:el.tplPub?.value||'esp32c3/{dev}/cmd' }; }
+  function cfgApply(cfg){
+    if(!cfg) return;
+    if(el.host && cfg.host!=null) el.host.value=cfg.host;
+    if(el.dev  && cfg.dev!=null)  el.dev.value=cfg.dev;
+    if(el.cid  && cfg.cid!=null)  el.cid.value=cfg.cid || ('gp-'+Math.random().toString(16).slice(2));
+    if(el.tplSub && cfg.tplSub!=null) el.tplSub.value=cfg.tplSub;
+    if(el.tplPub && cfg.tplPub!=null) el.tplPub.value=cfg.tplPub;
+    refreshTopics(); saveLocal(); safeSwitchIfNeeded();
+  }
+  function profKey(name){ return 'profile:'+name; }
+
+  function loadNames(){ return kvGet(KEY_NAMES).then(v=>Array.isArray(v)?v:[]); }
+  function saveNames(list){ return kvSet(KEY_NAMES, list); }
+
+  function syncSelect(){
+    loadNames().then(function(list){
+      if(!el.profSelect) return;
+      el.profSelect.innerHTML='';
+      var opt0=document.createElement('option'); opt0.value=''; opt0.textContent='（未選擇）'; el.profSelect.appendChild(opt0);
+      list.forEach(function(n){ var o=document.createElement('option'); o.value=n; o.textContent=n; el.profSelect.appendChild(o); });
+      var last = localStorage.getItem('mqtt.lastProfile') || '';
+      if(last && list.indexOf(last)>=0) el.profSelect.value=last;
+    });
+  }
+  function profSave(name){
+    if(!name){ alert('請輸入設定檔名稱'); return; }
+    var cfg=cfgCollect();
+    loadNames().then(function(list){
+      if(list.indexOf(name)<0) list.push(name);
+      kvSet(profKey(name), cfg).then(()=>saveNames(list)).then(function(){
+        localStorage.setItem('mqtt.lastProfile', name);
+        syncSelect(); log('info','已保存設定檔「'+name+'」');
+      }).catch(e=>log('err','保存失敗：'+e.message));
+    });
+  }
+  function profDelete(name){
+    if(!name){ alert('未選擇設定檔'); return; }
+    loadNames().then(function(list){
+      var i=list.indexOf(name); if(i>=0) list.splice(i,1);
+      kvDel(profKey(name)).then(()=>saveNames(list)).then(function(){
+        if(localStorage.getItem('mqtt.lastProfile')===name) localStorage.removeItem('mqtt.lastProfile');
+        syncSelect(); log('info','已刪除設定檔「'+name+'」');
+      }).catch(e=>log('err','刪除失敗：'+e.message));
+    });
+  }
+  function profLoad(name){
+    if(!name) return;
+    kvGet(profKey(name)).then(function(cfg){
+      if(cfg){ cfgApply(cfg); localStorage.setItem('mqtt.lastProfile', name); log('info','已套用設定檔「'+name+'」'); }
+      else    { log('err','設定檔不存在'); }
+    });
+  }
+  function profExport(){
+    loadNames().then(function(list){
+      var tasks=list.map(n=>kvGet(profKey(n)).then(cfg=>[n,cfg]));
+      Promise.all(tasks).then(function(pairs){
+        var obj={version:'v280', profiles:{}};
+        pairs.forEach(([n,c])=>obj.profiles[n]=c);
+        var blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});
+        var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='gate-profiles.json'; a.click(); URL.revokeObjectURL(a.href);
+        log('info','已匯出 '+list.length+' 筆設定檔');
+      });
+    });
+  }
+  function profImport(file){
+    var r=new FileReader();
+    r.onload=function(e){
+      try{
+        var j=JSON.parse(String(e.target.result||'{}')); var map=j && j.profiles ? j.profiles : j;
+        var names=Object.keys(map||{}); if(!names.length){ alert('檔案中沒有設定檔'); return; }
+        loadNames().then(function(old){
+          var all=old.slice(); var chain=Promise.resolve();
+          names.forEach(function(n){ if(all.indexOf(n)<0) all.push(n); chain=chain.then(()=>kvSet(profKey(n),map[n])); });
+          chain.then(()=>saveNames(all)).then(()=>{ syncSelect(); log('info','已匯入 '+names.length+' 筆設定檔'); });
+        });
+      }catch(err){ alert('匯入失敗：'+err.message); }
+    };
+    r.readAsText(file);
+  }
+
+  /* ---------- 5) MQTT 連線與發佈 ---------- */
+  var client=null, currentSub='';
+  function setStatus(state){ // 'ok' | 'warn' | 'err'
+    if(!el.dot||!el.stat) return;
+    el.dot.classList.remove('ok','warn','err');
+    if(state==='ok'){ el.dot.classList.add('ok'); el.stat.textContent='Connected'; }
+    else if(state==='warn'){ el.dot.classList.add('warn'); el.stat.textContent='Reconnecting…'; }
+    else { el.dot.classList.add('err'); el.stat.textContent='Disconnected'; }
+  }
+  var hasTD = typeof window.TextDecoder==='function';
+  var decoder = hasTD ? new TextDecoder('utf-8') : null;
+  function decodePayload(p){
+    try{
+      if(hasTD) return decoder.decode(p);
+      var u8 = (p instanceof Uint8Array) ? p : new Uint8Array(p);
+      var s=''; for(var i=0;i<u8.length;i++) s+=String.fromCharCode(u8[i]);
+      try{ return decodeURIComponent(escape(s)); }catch(e){ return s; }
+    }catch(e){ return String(p); }
+  }
+
+  function connect(){
+    if(typeof mqtt==='undefined'){ log('err','找不到 mqtt.min.js，請確認檔案在同資料夾'); return; }
+    saveLocal(); refreshTopics();
+    var url=el.host && el.host.value ? el.host.value.trim() : '';
+    var cid=el.cid  && el.cid.value  ? el.cid.value.trim()  : '';
+    if(!cid){ cid='gp-'+Math.random().toString(16).slice(2); if(el.cid) el.cid.value=cid; saveLocal(); }
+
+    if(client){ try{ client.end(true); }catch(e){} client=null; }
+    log('info','Connecting to '+url+' (clientId='+cid+')');
+
+    try{
+      client=mqtt.connect(url,{reconnectPeriod:3000,connectTimeout:10000,clientId:cid,clean:true,keepalive:30,protocolVersion:4});
+    }catch(e){ log('err','connect() error: '+(e && e.message ? e.message : e)); return; }
+
+    client.on('connect', function(){
+      setStatus('ok'); log('info','Connected');
+      currentSub = el.subTopic ? el.subTopic.textContent : renderTpl(el.tplSub && el.tplSub.value);
+      client.subscribe(currentSub,{qos:0}, function(err){
+        if(err) log('err','Subscribe failed: '+err.message);
+        else    log('info','Subscribed: '+currentSub);
+      });
+    });
+    client.on('reconnect', function(){ setStatus('warn'); log('info','Reconnecting…'); });
+    client.on('close',     function(){ setStatus('err'); });
+    client.on('error',     function(e){ log('err','MQTT error: '+(e && e.message ? e.message : e)); });
+    client.on('message',   function(t,p){ log('rx', t+'  →  '+ decodePayload(p)); });
+  }
+  function disconnect(){ if(client){ client.end(true); client=null; } setStatus('err'); log('info','Disconnected'); }
+  function ensureConn(){ if(!client || !client.connected){ log('err','尚未連線，無法發佈'); return false; } return true; }
+  function publish(msg){
+    if(!ensureConn()) return;
+    var t = el.pubTopic ? el.pubTopic.textContent : renderTpl(el.tplPub && el.tplPub.value);
+    client.publish(t, String(msg), {qos:0, retain:false}, function(err){
+      if(err) log('err','Publish failed: '+(err && err.message ? err.message : err));
+      else    log('tx', t+'  ←  '+msg);
+    });
+  }
+  function safeSwitchIfNeeded(){
+    if(!(client && client.connected)) return;
+    var next = el.subTopic ? el.subTopic.textContent : renderTpl(el.tplSub && el.tplSub.value);
+    if(currentSub && next && currentSub!==next){
+      try{ client.unsubscribe(currentSub, function(){}); }catch(e){}
+      client.subscribe(next,{qos:0}, function(){ log('info','已切換訂閱：'+next); });
+      currentSub = next;
+    }
+  }
+
+  /* ---------- 6) 事件綁定（行動裝置友善；確保元素存在才綁） ---------- */
+  if(el.btnConn) el.btnConn.addEventListener('click', connect);
+  if(el.btnDisc) el.btnDisc.addEventListener('click', disconnect);
+  if(el.btnClear)el.btnClear.addEventListener('click', function(){ if(el.log) el.log.innerHTML=''; });
+
+  if(el.btnD1O) el.btnD1O.addEventListener('click', function(){ publish('D1O'); });
+  if(el.btnD1C) el.btnD1C.addEventListener('click', function(){ publish('D1C'); });
+  if(el.btnD2I) el.btnD2I.addEventListener('click', function(){ publish('D2I'); });
+  if(el.btnD2S) el.btnD2S.addEventListener('click', function(){ publish('D2S'); });
+  if(el.btnOn)  el.btnOn .addEventListener('click', function(){ publish('on'); });
+  if(el.btnOff) el.btnOff.addEventListener('click', function(){ publish('off'); });
+  if(el.btnSend)el.btnSend.addEventListener('click', function(){ publish(el.inpMsg && el.inpMsg.value || ''); });
+
+  // 欄位變更：即時保存 + 預覽更新 +（若已連線）安全換訂閱
+  function onTopicChange(){ saveLocal(); refreshTopics(); safeSwitchIfNeeded(); }
+  ['change','input'].forEach(function(ev){
+    if(el.dev)     el.dev.addEventListener(ev, onTopicChange);
+    if(el.tplSub)  el.tplSub.addEventListener(ev, onTopicChange);
+    if(el.tplPub)  el.tplPub.addEventListener(ev, onTopicChange);
+  });
+
+  // Profiles：存/刪/切換/匯出/匯入
+  if(el.btnProfSave)   el.btnProfSave.addEventListener('click', function(){ var name=el.profName && el.profName.value ? el.profName.value.trim() : ''; if(!name){ alert('請輸入設定檔名稱'); return; } profSave(name); });
+  if(el.btnProfDelete) el.btnProfDelete.addEventListener('click', function(){ var name=el.profSelect && el.profSelect.value; if(!name){ alert('未選擇設定檔'); return; } if(confirm('確定刪除設定檔「'+name+'」？')) profDelete(name); });
+  if(el.profSelect)    el.profSelect.addEventListener('change', function(){ var name=el.profSelect.value; if(!name) return; profLoad(name); });
+  if(el.btnProfExport) el.btnProfExport.addEventListener('click', profExport);
+  if(el.btnProfImport) el.btnProfImport.addEventListener('click', function(){ el.fileImport && el.fileImport.click(); });
+  if(el.fileImport)    el.fileImport.addEventListener('change', function(e){ var f=e.target.files && e.target.files[0]; if(f) profImport(f); e.target.value=''; });
+
+  // 鍵盤快速鍵（桌面端）
+  window.addEventListener('keydown', function(ev){
+    var k=(ev.key||'').toLowerCase();
+    if(['input','textarea'].indexOf((ev.target.tagName||'').toLowerCase())>=0) return;
+    if(k==='c'){ if(client && client.connected) disconnect(); else connect(); }
+    if(k==='1') publish('D1O'); if(k==='2') publish('D1C'); if(k==='3') publish('D2I'); if(k==='4') publish('D2S');
+    if(k==='l') publish('on');  if(k==='k') publish('off');
+  });
+
+  /* ---------- 7) 初始化：還原狀態、載入最後使用的 Profile ---------- */
+  loadLocal();                     // 還原上次使用欄位
+  syncSelect();                    // 把 IndexedDB 名單灌入下拉
+  var last = localStorage.getItem('mqtt.lastProfile');
+  if(last) profLoad(last);         // 如果有最後選用的設定檔就自動套用
+  setStatus('err');                // 初始顯示為離線
+});
+</script>
+</body>
+</html>
