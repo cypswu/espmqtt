@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- [PWA] 更新 manifest 連結為 .webmanifest 副檔名 -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#1e1e1e">
+    <!-- [PWA] 新增 iOS 支援相關 meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="IoT ProDeck">
+    
+    <title>IoT ProDeck | PWA 可訂閱狀態 MQTT 控制中心 v4.0</title>
+    <style>
+        /* --- 全域與主題變數 --- */
+        :root {
+            --bg: #121212;
+            --card: #1e1e1e;
+            --ink: #e0e0e0;
+            --muted: #888;
+            --line: #333;
+            --accent: #007aff; /* 可由使用者設定 */
+            --good: #28a745;
+            --bad: #dc3545;
+            --neutral: #6c757d;
+            --info: #17a2b8;
+            --err: #ffc107;
+            --radius: 18px;
+            --shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* --- 基礎樣式重設 --- */
+        *, *::before, *::after { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            margin: 0;
+            padding-top: 60px; /* App Bar 高度 */
+            padding-bottom: 250px; /* Logger 高度 */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--ink);
+            line-height: 1.6;
+            transition: background-color 0.3s;
+        }
+
+        /* --- 容器與佈局 --- */
+        .container {
+            padding: 16px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* --- App Bar --- */
+        .app-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: var(--card);
+            border-bottom: 1px solid var(--line);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            font-size: 18px;
+        }
+        .brand .logo {
+            width: 24px;
+            height: 24px;
+            background-color: var(--accent);
+            border-radius: 6px;
+            margin-right: 12px;
+            transition: background-color 0.3s;
+        }
+        .status-capsule {
+            display: flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .status-capsule.disconnected { background-color: var(--bad); color: white; }
+        .status-capsule.reconnecting { background-color: var(--err); color: #333; }
+        .status-capsule.connected { background-color: var(--good); color: white; }
+        
+        .app-bar-actions button {
+            margin-left: 8px;
+        }
+
+        /* --- Tabs --- */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            padding: 16px 0;
+        }
+        .tab-link {
+            padding: 8px 24px;
+            margin: 0 8px;
+            border-radius: 99px;
+            cursor: pointer;
+            font-weight: 500;
+            border: 1px solid transparent;
+            background-color: var(--card);
+            color: var(--muted);
+            transition: all 0.2s ease-in-out;
+            user-select: none;
+        }
+        .tab-link.active {
+            background-color: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* --- 卡片 (Card) --- */
+        .card {
+            background-color: var(--card);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--line);
+        }
+        .card-title {
+            margin: -20px -20px 20px -20px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--line);
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+        .card-subtitle {
+            font-size: 0.9em;
+            color: var(--muted);
+            margin-top: -10px;
+            margin-bottom: 15px;
+            font-weight: 400;
+        }
+        
+        /* --- 控制項網格 --- */
+        .controls-grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        }
+
+        .control-group-grid {
+            display: grid;
+            gap: 16px;
+            /* 手機 2 欄，平板/桌面 4 欄 */
+            grid-template-columns: repeat(2, 1fr);
+        }
+        @media (min-width: 768px) {
+            .control-group-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+
+        /* --- 表單元件 --- */
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: var(--muted);
+        }
+        input[type="text"], input[type="password"], input[type="number"], input[type="color"], select {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            color: var(--ink);
+            font-size: 16px;
+        }
+        input[type="color"] { padding: 4px; height: 48px; }
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+        }
+        .form-group small {
+            font-size: 0.8em;
+            color: var(--muted);
+        }
+
+        /* --- 按鈕 (Button) --- */
+        .btn {
+            padding: 12px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.2s;
+            background-color: var(--neutral);
+            color: white;
+            user-select: none;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn:hover:not(:disabled) { filter: brightness(1.1); }
+        .btn:active:not(:disabled) { transform: translateY(1px); filter: brightness(0.9); }
+        
+        .btn.good { background-color: var(--good); }
+        .btn.bad { background-color: var(--bad); }
+        .btn.neutral { background-color: var(--neutral); }
+        .btn.ghost { background-color: transparent; border: 2px solid var(--accent); color: var(--accent); }
+
+        /* --- 特定控制項 --- */
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 12px;
+            background-color: var(--bg);
+            border-radius: 12px;
+            min-height: 80px;
+            position: relative;
+        }
+        .control-item .label {
+            font-weight: 500;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        /* 按鈕型控制 */
+        .control-button {
+            width: 100%;
+            padding: 16px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border-radius: 10px;
+            height: 100%;
+        }
+
+        /* 切換型控制 (Toggle) */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .toggle-switch input { display: none; }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--neutral);
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 26px; width: 26px;
+            left: 4px; bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .toggle-slider { background-color: var(--accent); }
+        input:checked + .toggle-slider:before { transform: translateX(26px); }
+
+        /* 滑桿型控制 (Slider) */
+        .slider-control {
+            width: 100%;
+            text-align: center;
+        }
+        .slider-control input[type="range"] {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        .slider-control input[type="range"]::-webkit-slider-runnable-track {
+            background: var(--line);
+            height: 8px;
+            border-radius: 4px;
+        }
+        .slider-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            margin-top: -6px; /* (thumb height - track height) / 2 */
+            background-color: var(--accent);
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+        }
+        .slider-value {
+            font-weight: bold;
+            color: var(--accent);
+            margin-top: 8px;
+        }
+
+        /* 顯示型控制 (Display) */
+        .display-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: var(--accent);
+        }
+        .display-link {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            color: var(--muted);
+            text-decoration: none;
+        }
+        .display-link:hover { color: var(--accent); }
+
+        /* --- 訊息紀錄 (Logger) --- */
+        #logger {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 250px;
+            background-color: #0a0a0a;
+            border-top: 1px solid var(--line);
+            padding: 10px;
+            overflow-y: scroll;
+            font-family: "SF Mono", "Courier New", monospace;
+            font-size: 13px;
+            z-index: 1000;
+        }
+        .log-entry {
+            display: flex;
+            margin-bottom: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .log-time { color: var(--muted); margin-right: 10px; flex-shrink: 0; }
+        .log-type { font-weight: bold; margin-right: 10px; flex-shrink: 0; width: 40px; }
+        .log-type-INFO { color: var(--info); }
+        .log-type-TX   { color: var(--good); }
+        .log-type-RX   { color: #9c27b0; }
+        .log-type-ERR  { color: var(--err); }
+        .log-content { flex-grow: 1; }
+
+        /* --- 快速指令 --- */
+        .quick-command-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+        @media (min-width: 992px) {
+            .quick-command-grid {
+                grid-template-columns: 3fr 1fr 1fr 1fr auto;
+                align-items: flex-end;
+            }
+        }
+        #quick-command-form .form-group { margin-bottom: 0; }
+
+        /* --- 設定頁面 --- */
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        /* --- 自訂控制管理器 --- */
+        #control-manager-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .control-manager-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background-color: var(--bg);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: grab;
+        }
+        .control-manager-item:active { cursor: grabbing; }
+        .control-manager-item .label { flex-grow: 1; }
+        .control-manager-item .type { color: var(--muted); margin-right: 10px; }
+        .control-manager-item button { margin-left: 5px; padding: 5px 10px; }
+        .dragging { opacity: 0.5; background: var(--accent); }
+
+        /* --- 模態視窗 (Modal) --- */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0; top: 0;
+            width: 100%; height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+        }
+        .modal-content {
+            background-color: var(--card);
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid var(--line);
+            width: 90%;
+            max-width: 600px;
+            border-radius: var(--radius);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .modal-header h2 { margin: 0; }
+        .close-button {
+            color: var(--muted);
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-button:hover { color: var(--ink); }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .modal-footer button { margin-left: 10px; }
+
+        /* --- Toast 通知 --- */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        .toast {
+            background-color: var(--card);
+            color: var(--ink);
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            margin-bottom: 10px;
+            border-left: 4px solid var(--info);
+            opacity: 0;
+            transform: translateX(100%);
+            animation: slideIn 0.5s forwards, fadeOut 0.5s 4.5s forwards;
+        }
+        .toast.success { border-left-color: var(--good); }
+        .toast.error { border-left-color: var(--bad); }
+
+        @keyframes slideIn {
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes fadeOut {
+            to { opacity: 0; transform: translateX(100%); }
+        }
+
+        /* 輔助 class */
+        .hidden { display: none !important; }
+
+    </style>
+</head>
+<body>
+
+    <!-- App Bar -->
+    <header class="app-bar">
+        <div class="brand">
+            <div class="logo"></div>
+            <span>IoT ProDeck v4.0</span>
+        </div>
+        <div id="status-display" class="status-capsule disconnected">Disconnected</div>
+        <div class="app-bar-actions">
+            <button id="connect-btn" class="btn good">連線</button>
+            <button id="disconnect-btn" class="btn bad" disabled>中斷</button>
+        </div>
+    </header>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <span class="tab-link active" data-tab="control-panel">控制</span>
+        <span class="tab-link" data-tab="settings-panel">設定</span>
+    </div>
+
+    <main class="container">
+        <!-- 控制分頁 -->
+        <div id="control-panel" class="tab-content active">
+            <!-- 門控 (動態產生) -->
+            <section id="gate-control-section" class="card" style="display: none;">
+                <h2 class="card-title">門控</h2>
+                <div id="gate-control-grid" class="control-group-grid">
+                    <!-- 內容由 JS 動態生成 -->
+                </div>
+            </section>
+
+            <!-- 自訂控制群組 -->
+            <div id="custom-controls-container">
+                <!-- 內容由 JS 動態生成 -->
+            </div>
+
+            <!-- 快速指令 -->
+            <section class="card">
+                <h2 class="card-title">快速指令 / 自訂訊息</h2>
+                <form id="quick-command-form" class="quick-command-grid">
+                    <div class="form-group">
+                        <label for="qc-payload">Payload</label>
+                        <input type="text" id="qc-payload" placeholder="輸入要發送的訊息...">
+                    </div>
+                    <div class="form-group">
+                        <label for="qc-qos">QoS</label>
+                        <select id="qc-qos">
+                            <option value="-1">跟隨全域</option>
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="qc-retain">Retain</label>
+                        <select id="qc-retain">
+                            <option value="-1">跟隨全域</option>
+                            <option value="1">True</option>
+                            <option value="0">False</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="qc-topic">Topic 覆寫</label>
+                        <input type="text" id="qc-topic" placeholder="可選...">
+                    </div>
+                    <button type="submit" class="btn good">送出</button>
+                </form>
+            </section>
+        </div>
+
+        <!-- 設定分頁 -->
+        <div id="settings-panel" class="tab-content">
+            <div class="settings-grid">
+                <!-- 連線設定 -->
+                <section class="card">
+                    <h2 class="card-title">連線設定</h2>
+                    <div class="form-group">
+                        <label for="setting-broker">Broker (WSS URL)</label>
+                        <input type="text" id="setting-broker" placeholder="wss://your-broker-url:port">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-dev-id">裝置 ID</label>
+                        <input type="text" id="setting-dev-id" placeholder="用於主題模板 {dev}">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-client-id">Client ID</label>
+                        <input type="text" id="setting-client-id" placeholder="留空則隨機生成">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-username">使用者名稱 (選填)</label>
+                        <input type="text" id="setting-username" placeholder="MQTT Broker 使用者名稱">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-password">密碼 (選填)</label>
+                        <input type="password" id="setting-password" placeholder="MQTT Broker 密碼">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-clean-session">Clean Session</label>
+                        <select id="setting-clean-session">
+                            <option value="true">True</option>
+                            <option value="false">False</option>
+                        </select>
+                    </div>
+                     <div class="form-group">
+                        <label for="setting-keepalive">Keepalive (秒)</label>
+                        <input type="number" id="setting-keepalive" value="60" min="0">
+                    </div>
+                </section>
+                
+                <!-- 主題 & 行為 -->
+                <section class="card">
+                    <h2 class="card-title">主題 & 行為</h2>
+                    <div class="form-group">
+                        <label for="setting-sub-tpl">主要命令主題 (接收)</label>
+                        <input type="text" id="setting-sub-tpl" value="devices/{dev}/commands">
+                        <small>用於接收通用指令。控制項的獨立狀態更新有專用主題。</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-pub-tpl">主要事件主題 (發布)</label>
+                        <input type="text" id="setting-pub-tpl" value="devices/{dev}/events">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-prefix">主題前綴</label>
+                        <input type="text" id="setting-prefix">
+                    </div>
+                     <div class="form-group">
+                        <label for="setting-suffix">主題後綴</label>
+                        <input type="text" id="setting-suffix">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-global-pub-qos">全域發佈 QoS</label>
+                        <select id="setting-global-pub-qos">
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-global-sub-qos">訂閱 QoS</label>
+                        <select id="setting-global-sub-qos">
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-global-retain">全域 Retain</label>
+                        <select id="setting-global-retain">
+                            <option value="false">False</option>
+                            <option value="true">True</option>
+                        </select>
+                    </div>
+                </section>
+
+                <!-- 設定檔 -->
+                <section class="card">
+                    <h2 class="card-title">設定檔 (Profiles)</h2>
+                    <div class="form-group">
+                        <label for="profile-select">選擇設定檔</label>
+                        <select id="profile-select"></select>
+                    </div>
+                    <div class="form-group">
+                         <input type="text" id="profile-name" placeholder="輸入新設定檔名稱...">
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button id="profile-save-btn" class="btn good">儲存/覆寫</button>
+                        <button id="profile-delete-btn" class="btn bad">刪除</button>
+                    </div>
+                    <hr style="border-color: var(--line); margin: 20px 0;">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                         <button id="profile-export-current-btn" class="btn neutral">匯出目前</button>
+                         <button id="profile-export-all-btn" class="btn neutral">匯出全部</button>
+                         <button id="profile-import-btn" class="btn neutral">匯入設定</button>
+                         <input type="file" id="import-file-input" class="hidden" accept=".json, .webmanifest">
+                    </div>
+                </section>
+                
+                <!-- 外觀 -->
+                <section class="card">
+                    <h2 class="card-title">外觀主題</h2>
+                    <div class="form-group">
+                        <label for="setting-accent-color">主題色 (Accent Color)</label>
+                        <input type="color" id="setting-accent-color" value="#007aff">
+                    </div>
+                </section>
+            </div>
+
+            <!-- 自訂控制管理器 -->
+            <section class="card">
+                <h2 class="card-title">自訂控制管理器</h2>
+                <ul id="control-manager-list">
+                    <!-- JS 生成 -->
+                </ul>
+                <button id="add-control-btn" class="btn good" style="margin-top: 20px;">新增控制項</button>
+            </section>
+        </div>
+    </main>
+
+    <!-- 訊息紀錄 -->
+    <div id="logger"></div>
+
+    <!-- Toast 通知容器 -->
+    <div id="toast-container"></div>
+
+    <!-- 自訂控制編輯器 Modal -->
+    <div id="control-editor-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">編輯控制項</h2>
+                <span id="close-modal-btn" class="close-button">&times;</span>
+            </div>
+            <form id="control-editor-form">
+                <input type="hidden" id="control-id">
+                <!-- 基本設定 -->
+                <h3 class="card-subtitle" style="margin-top:0;">基本設定</h3>
+                <div class="settings-grid">
+                    <div class="form-group">
+                        <label for="control-label">標籤</label>
+                        <input type="text" id="control-label" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="control-group">群組</label>
+                        <input type="text" id="control-group" placeholder="例如: 門控、客廳...">
+                    </div>
+                    <div class="form-group">
+                        <label for="control-type">類型</label>
+                        <select id="control-type">
+                            <option value="button">Button (按鈕)</option>
+                            <option value="toggle">Toggle (開關)</option>
+                            <option value="slider">Slider (滑桿)</option>
+                            <option value="display">Display (資訊顯示)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="control-style">樣式</label>
+                        <select id="control-style">
+                            <option value="good">Good (綠)</option>
+                            <option value="bad">Bad (紅)</option>
+                            <option value="neutral">Neutral (灰)</option>
+                            <option value="ghost">Ghost (描邊)</option>
+                            <option value="custom">Custom (自訂顏色)</option>
+                        </select>
+                    </div>
+                    <div id="custom-color-field" class="form-group hidden">
+                        <label for="control-custom-color">自訂顏色</label>
+                        <input type="color" id="control-custom-color" value="#333333">
+                    </div>
+                </div>
+                
+                <!-- 發布 (TX) 設定 -->
+                <div id="publish-fields">
+                    <hr style="border-color: var(--line); margin: 20px 0;">
+                    <h3 class="card-subtitle">發布 (TX) 設定</h3>
+                    <div class="form-group">
+                        <label for="control-topic">發布 Topic 覆寫 (可選)</label>
+                        <input type="text" id="control-topic" placeholder="覆寫全域發佈主題">
+                    </div>
+                    <div id="button-fields" class="form-group">
+                        <label for="control-payload">Payload</label>
+                        <input type="text" id="control-payload">
+                    </div>
+                    <div id="toggle-fields" class="hidden">
+                        <div class="form-group">
+                            <label for="control-payload-on">Payload (ON)</label>
+                            <input type="text" id="control-payload-on">
+                        </div>
+                        <div class="form-group">
+                            <label for="control-payload-off">Payload (OFF)</label>
+                            <input type="text" id="control-payload-off">
+                        </div>
+                    </div>
+                    <div id="slider-fields" class="hidden">
+                        <div class="form-group">
+                            <label for="control-payload-tpl">Payload 模板 (用 {v} 代表數值)</label>
+                            <input type="text" id="control-payload-tpl" placeholder="例如: brightness:{v}">
+                        </div>
+                        <div class="settings-grid">
+                            <div class="form-group"><label for="control-min">Min</label><input type="number" id="control-min" value="0"></div>
+                            <div class="form-group"><label for="control-max">Max</label><input type="number" id="control-max" value="100"></div>
+                            <div class="form-group"><label for="control-step">Step</label><input type="number" id="control-step" value="1"></div>
+                        </div>
+                        <div class="form-group" style="display: flex; align-items: center;">
+                            <input type="checkbox" id="control-live" style="width: auto; margin-right: 10px;"><label for="control-live" style="margin-bottom: 0;">即時送出 (拖動時)</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 訂閱 (RX) / 狀態同步設定 -->
+                <div id="subscribe-fields">
+                    <hr style="border-color: var(--line); margin: 20px 0;">
+                    <h3 class="card-subtitle">訂閱 (RX) / 狀態同步設定</h3>
+                    <div id="display-fields" class="hidden">
+                        <div class="form-group">
+                            <label for="display-topic">訂閱 Topic</label>
+                            <input type="text" id="display-topic" placeholder="例如: devices/{dev}/telemetry">
+                        </div>
+                        <div class="form-group">
+                            <label for="display-value-path">數值路徑 (Value Path)</label>
+                            <input type="text" id="display-value-path" placeholder="例如: data.temperature">
+                        </div>
+                        <div class="form-group">
+                            <label for="display-unit">單位</label>
+                            <input type="text" id="display-unit" placeholder="例如: °C, %, ppm">
+                        </div>
+                        <div class="form-group">
+                            <label for="display-link">超連結 (可選)</label>
+                            <input type="text" id="display-link" placeholder="https://...">
+                        </div>
+                    </div>
+                    <div id="state-sync-fields" class="hidden">
+                        <div class="form-group">
+                           <label for="control-state-topic">狀態訂閱 Topic</label>
+                           <input type="text" id="control-state-topic" placeholder="例如: devices/{dev}/state">
+                           <small>監聽此主題以自動更新此控制項的狀態。</small>
+                       </div>
+                       <div class="form-group">
+                           <label for="control-state-value-path">狀態數值路徑 (Value Path)</label>
+                           <input type="text" id="control-state-value-path" placeholder="例如: light.state 或 brightness">
+                           <small>用於從 JSON Payload 中提取狀態值。</small>
+                       </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" id="cancel-control-btn" class="btn neutral">取消</button>
+                    <button type="submit" id="save-control-btn" class="btn good">儲存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="./mqtt.min.js"></script>
+    <script>
+    // --- IIFE (立即調用函式表達式) 以封裝應用程式邏輯，避免污染全域命名空間 ---
+    (() => {
+        'use strict'; // 啟用嚴格模式，捕獲常見錯誤
+
+        // --- DOM 元素快取 ---
+        const $ = document.querySelector.bind(document);
+        const $$ = document.querySelectorAll.bind(document);
+
+        const dom = {
+            // App Bar
+            connectBtn: $('#connect-btn'),
+            disconnectBtn: $('#disconnect-btn'),
+            statusDisplay: $('#status-display'),
+            // Tabs
+            tabs: $$('.tab-link'),
+            tabContents: $$('.tab-content'),
+            // Control Panel
+            quickCommandForm: $('#quick-command-form'),
+            qcPayload: $('#qc-payload'),
+            qcQos: $('#qc-qos'),
+            qcRetain: $('#qc-retain'),
+            qcTopic: $('#qc-topic'),
+            gateControlSection: $('#gate-control-section'),
+            gateControlGrid: $('#gate-control-grid'),
+            customControlsContainer: $('#custom-controls-container'),
+            // Settings Panel
+            settingBroker: $('#setting-broker'),
+            settingDevId: $('#setting-dev-id'),
+            settingClientId: $('#setting-client-id'),
+            settingUsername: $('#setting-username'),
+            settingPassword: $('#setting-password'),
+            settingCleanSession: $('#setting-clean-session'),
+            settingKeepalive: $('#setting-keepalive'),
+            settingSubTpl: $('#setting-sub-tpl'),
+            settingPubTpl: $('#setting-pub-tpl'),
+            settingPrefix: $('#setting-prefix'),
+            settingSuffix: $('#setting-suffix'),
+            settingGlobalPubQos: $('#setting-global-pub-qos'),
+            settingGlobalSubQos: $('#setting-global-sub-qos'),
+            settingGlobalRetain: $('#setting-global-retain'),
+            settingAccentColor: $('#setting-accent-color'),
+            // Profiles
+            profileSelect: $('#profile-select'),
+            profileNameInput: $('#profile-name'),
+            profileSaveBtn: $('#profile-save-btn'),
+            profileDeleteBtn: $('#profile-delete-btn'),
+            profileExportCurrentBtn: $('#profile-export-current-btn'),
+            profileExportAllBtn: $('#profile-export-all-btn'),
+            profileImportBtn: $('#profile-import-btn'),
+            importFileInput: $('#import-file-input'),
+            // Control Manager
+            controlManagerList: $('#control-manager-list'),
+            addControlBtn: $('#add-control-btn'),
+            // Modal
+            controlEditorModal: $('#control-editor-modal'),
+            modalTitle: $('#modal-title'),
+            closeModalBtn: $('#close-modal-btn'),
+            cancelControlBtn: $('#cancel-control-btn'),
+            controlEditorForm: $('#control-editor-form'),
+            controlId: $('#control-id'),
+            controlLabel: $('#control-label'),
+            controlGroup: $('#control-group'),
+            controlType: $('#control-type'),
+            controlStyle: $('#control-style'),
+            controlTopic: $('#control-topic'),
+            // [樣式] 快取自訂顏色相關元素
+            customColorField: $('#custom-color-field'),
+            controlCustomColor: $('#control-custom-color'),
+            // Sections
+            publishFields: $('#publish-fields'),
+            subscribeFields: $('#subscribe-fields'),
+            // Fields by type
+            buttonFields: $('#button-fields'),
+            controlPayload: $('#control-payload'),
+            toggleFields: $('#toggle-fields'),
+            controlPayloadOn: $('#control-payload-on'),
+            controlPayloadOff: $('#control-payload-off'),
+            sliderFields: $('#slider-fields'),
+            controlPayloadTpl: $('#control-payload-tpl'),
+            controlMin: $('#control-min'),
+            controlMax: $('#control-max'),
+            controlStep: $('#control-step'),
+            controlLive: $('#control-live'),
+            displayFields: $('#display-fields'),
+            displayTopic: $('#display-topic'),
+            displayValuePath: $('#display-value-path'),
+            displayUnit: $('#display-unit'),
+            displayLink: $('#display-link'),
+            // [狀態同步] 快取狀態同步相關元素
+            stateSyncFields: $('#state-sync-fields'),
+            controlStateTopic: $('#control-state-topic'),
+            controlStateValuePath: $('#control-state-value-path'),
+            // Logger & UX
+            logger: $('#logger'),
+            toastContainer: $('#toast-container'),
+        };
+        
+        // --- 應用程式狀態管理 ---
+        let appState = {
+            mqttClient: null,
+            isConnected: false,
+            isReconnecting: false,
+            currentProfileName: null,
+            profiles: {},
+            profileNames: [],
+            controls: [],
+            activeSubscriptions: new Set(),
+            sliderThrottles: {},
+        };
+        
+        // --- 核心工具函式 ---
+        const MAX_LOG_ENTRIES = 500;
+        function log(type, content) {
+            const now = new Date();
+            const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">${time}</span><span class="log-type log-type-${type}">${type}</span><span class="log-content">${content}</span>`;
+            dom.logger.appendChild(entry);
+            dom.logger.scrollTop = dom.logger.scrollHeight;
+            if (dom.logger.children.length > MAX_LOG_ENTRIES) {
+                dom.logger.removeChild(dom.logger.firstElementChild);
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            dom.toastContainer.appendChild(toast);
+            setTimeout(() => { toast.remove(); }, 5000);
+        }
+
+        const debounce = (func, delay) => {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), delay);
+            };
+        };
+
+        const generateId = (prefix = 'c') => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        
+        function getValueByPath(obj, path) {
+            if (!path) return obj;
+            try {
+                return path.split('.').reduce((o, k) => (o && o[k] !== undefined) ? o[k] : undefined, obj);
+            } catch (e) {
+                return undefined;
+            }
+        }
+
+        // --- IndexedDB 持久化層 ---
+        const DB_NAME = 'sd_cfg_db';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'kv';
+        let db;
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onerror = event => {
+                    log('ERR', 'IndexedDB 初始化失敗: ' + event.target.errorCode);
+                    reject(event.target.errorCode);
+                };
+                request.onsuccess = event => {
+                    db = event.target.result;
+                    log('INFO', 'IndexedDB 初始化成功。');
+                    resolve(db);
+                };
+                request.onupgradeneeded = event => {
+                    event.target.result.createObjectStore(STORE_NAME);
+                    log('INFO', 'IndexedDB object store 已建立。');
+                };
+            });
+        }
+        
+        const dbAction = (type, key, value = null) => {
+            return new Promise((resolve, reject) => {
+                if (!db) return reject("DB not initialized");
+                const tx = db.transaction(STORE_NAME, type === 'get' ? 'readonly' : 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                const req = type === 'get' ? store.get(key)
+                          : type === 'delete' ? store.delete(key)
+                          : store.put(value, key);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        };
+        const dbGet = (key) => dbAction('get', key);
+        const dbSet = (key, value) => dbAction('put', key, value);
+        const dbDelete = (key) => dbAction('delete', key);
+
+        // --- UI 渲染引擎 ---
+        function updateConnectionStatus() {
+            if (appState.isConnected) {
+                dom.statusDisplay.className = 'status-capsule connected';
+                dom.statusDisplay.textContent = 'Connected';
+                dom.connectBtn.disabled = true;
+                dom.disconnectBtn.disabled = false;
+            } else if (appState.isReconnecting) {
+                dom.statusDisplay.className = 'status-capsule reconnecting';
+                dom.statusDisplay.textContent = 'Reconnecting...';
+                dom.connectBtn.disabled = true;
+                dom.disconnectBtn.disabled = false;
+            } else {
+                dom.statusDisplay.className = 'status-capsule disconnected';
+                dom.statusDisplay.textContent = 'Disconnected';
+                dom.connectBtn.disabled = false;
+                dom.disconnectBtn.disabled = true;
+            }
+        }
+        
+        function renderControls() {
+            dom.gateControlGrid.innerHTML = '';
+            dom.customControlsContainer.innerHTML = '';
+            dom.gateControlSection.style.display = 'none';
+
+            if (!appState.controls || appState.controls.length === 0) {
+                log('INFO', '沒有自訂控制項，正在建立預設項目。');
+                createDefaultControls();
+            }
+
+            const groupedControls = appState.controls.reduce((acc, control) => {
+                const groupName = (control.group || '').trim() || '未分組';
+                if (!acc[groupName]) acc[groupName] = [];
+                acc[groupName].push(control);
+                return acc;
+            }, {});
+
+            if (groupedControls['門控'] && groupedControls['門控'].length > 0) {
+                dom.gateControlSection.style.display = 'block';
+                const gateButtons = groupedControls['門控'].filter(c => c.type === 'button');
+                gateButtons.forEach(control => {
+                    const button = createControlElement(control);
+                    if (button) dom.gateControlGrid.appendChild(button);
+                });
+            }
+            delete groupedControls['門控'];
+
+            const sortedGroupNames = Object.keys(groupedControls).sort((a, b) => {
+                if (a === '未分組') return 1; if (b === '未分組') return -1;
+                return a.localeCompare(b, 'zh-TW');
+            });
+            
+            let customControlsRendered = false;
+            sortedGroupNames.forEach(groupName => {
+                const controlsInGroup = groupedControls[groupName];
+                if(controlsInGroup.length === 0) return;
+                
+                customControlsRendered = true;
+                const card = document.createElement('section');
+                card.className = 'card';
+                card.innerHTML = `<h2 class="card-title">${groupName}</h2>`;
+                const grid = document.createElement('div');
+                grid.className = 'control-group-grid';
+
+                controlsInGroup.forEach(control => {
+                    const item = createControlElement(control);
+                    if (item) grid.appendChild(item);
+                });
+                
+                card.appendChild(grid);
+                dom.customControlsContainer.appendChild(card);
+            });
+
+            if (!customControlsRendered && dom.gateControlSection.style.display === 'none') {
+                dom.customControlsContainer.innerHTML = `<div class="card" style="text-align:center; color: var(--muted);">沒有自訂控制項。<br>可至「設定」分頁新增。</div>`;
+            }
+        }
+        
+        function createControlElement(control) {
+            const container = document.createElement('div');
+            container.className = 'control-item';
+            container.dataset.id = control.id;
+
+            const label = document.createElement('div');
+            label.className = 'label';
+            label.textContent = control.label;
+
+            const applyCustomStyle = (element, control) => {
+                if (control.style === 'custom' && control.customColor) {
+                    if (control.isGhostCustom) {
+                        element.style.backgroundColor = 'transparent';
+                        element.style.borderColor = control.customColor;
+                        element.style.color = control.customColor;
+                    } else {
+                        element.style.backgroundColor = control.customColor;
+                        element.style.borderColor = control.customColor;
+                        element.style.color = '#FFFFFF';
+                    }
+                }
+            };
+
+            switch (control.type) {
+                case 'button': {
+                    if (control.group === '門控') {
+                        const btn = document.createElement('button');
+                        btn.className = `btn control-button ${control.style || 'neutral'}`;
+                        btn.textContent = control.label;
+                        btn.addEventListener('click', () => handleControlButtonClick(control));
+                        applyCustomStyle(btn, control);
+                        return btn;
+                    }
+                    const btn = document.createElement('button');
+                    btn.className = `btn control-button ${control.style || 'neutral'}`;
+                    btn.textContent = control.label;
+                    btn.addEventListener('click', () => handleControlButtonClick(control));
+                    applyCustomStyle(btn, control);
+                    container.innerHTML = ''; 
+                    container.style.padding = '0';
+                    container.appendChild(btn);
+                    return container;
+                }
+                case 'toggle': {
+                    label.id = `label-${control.id}`;
+                    const switchLabel = document.createElement('label');
+                    switchLabel.className = 'toggle-switch';
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.id = `control-input-${control.id}`;
+                    input.addEventListener('change', (e) => handleToggleSwitchChange(e, control));
+                    const slider = document.createElement('span');
+                    slider.className = 'toggle-slider';
+                    
+                    if (control.style === 'custom' && control.customColor) {
+                        const styleTag = document.createElement('style');
+                        styleTag.innerHTML = `#control-input-${control.id}:checked + .toggle-slider { background-color: ${control.customColor}; }`;
+                        container.appendChild(styleTag);
+                    }
+                    
+                    switchLabel.append(input, slider);
+                    container.append(label, switchLabel);
+                    updateControlUIState(control, control.state);
+                    return container;
+                }
+                case 'slider': {
+                    const sliderContainer = document.createElement('div');
+                    sliderContainer.className = 'slider-control';
+                    const input = document.createElement('input');
+                    Object.assign(input, { type: 'range', min: control.min, max: control.max, step: control.step });
+                    input.id = `control-input-${control.id}`;
+                    const valueDisplay = document.createElement('div');
+                    valueDisplay.className = 'slider-value';
+                    valueDisplay.id = `value-${control.id}`;
+                    input.addEventListener(control.live ? 'input' : 'change', (e) => handleSliderChange(e, control));
+                    if (control.live) {
+                        input.addEventListener('input', (e) => { valueDisplay.textContent = e.target.value; });
+                    }
+                    
+                    if (control.style === 'custom' && control.customColor) {
+                        valueDisplay.style.color = control.customColor;
+                        const styleTag = document.createElement('style');
+                        styleTag.innerHTML = `#control-input-${control.id}::-webkit-slider-thumb { background-color: ${control.customColor}; }`;
+                        container.appendChild(styleTag);
+                    }
+                    
+                    sliderContainer.append(input, valueDisplay);
+                    container.append(label, sliderContainer);
+                    updateControlUIState(control, control.value);
+                    return container;
+                }
+                case 'display': {
+                    const valueDisplay = document.createElement('div');
+                    valueDisplay.className = 'display-value';
+                    valueDisplay.id = `value-${control.id}`;
+                    valueDisplay.textContent = '--';
+                    container.append(label, valueDisplay);
+
+                    if(control.link){
+                        const link = document.createElement('a');
+                        link.href = control.link;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        link.className = 'display-link';
+                        link.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/><path d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/></svg>`;
+                        container.appendChild(link);
+                    }
+                    return container;
+                }
+                default: return null;
+            }
+        }
+        
+        function renderControlManager() {
+            dom.controlManagerList.innerHTML = '';
+            appState.controls.forEach((control, index) => {
+                const item = document.createElement('li');
+                item.className = 'control-manager-item';
+                item.dataset.index = index;
+                item.draggable = true;
+                item.innerHTML = `<span class="label">${control.label} (${control.group || '未分組'})</span><span class="type">${control.type}</span><button class="btn neutral edit-btn" data-id="${control.id}">編輯</button><button class="btn bad delete-btn" data-id="${control.id}">刪除</button>`;
+                dom.controlManagerList.appendChild(item);
+            });
+        }
+
+        // --- 控制項互動處理函式 ---
+        function handleControlButtonClick(control) {
+            if (!appState.isConnected) return showToast('操作失敗：尚未連線。', 'error');
+            publish(getEffectiveTopic(control, 'pub'), control.payload, { qos: getEffectiveQos(control), retain: getEffectiveRetain(control) });
+        }
+        
+        function handleToggleSwitchChange(event, control) {
+            if (!appState.isConnected) {
+                showToast('操作失敗：尚未連線。', 'error');
+                event.target.checked = !event.target.checked;
+                return;
+            }
+            const newState = event.target.checked;
+            control.state = newState;
+            const payload = newState ? control.payloadOn : control.payloadOff;
+            updateControlUIState(control, newState);
+            publish(getEffectiveTopic(control), payload, { qos: getEffectiveQos(control), retain: getEffectiveRetain(control) });
+        }
+        
+        function handleSliderChange(event, control){
+            const handler = (evt, ctrl) => {
+                if (!appState.isConnected) return showToast('操作失敗：尚未連線。', 'error');
+                const newValue = evt.target.value;
+                ctrl.value = newValue;
+                const payload = (ctrl.payloadTpl || '{v}').replace('{v}', newValue);
+                updateControlUIState(ctrl, newValue);
+                publish(getEffectiveTopic(ctrl), payload, { qos: getEffectiveQos(ctrl), retain: getEffectiveRetain(ctrl) });
+            };
+
+            if (control.live) {
+                clearTimeout(appState.sliderThrottles[control.id]);
+                appState.sliderThrottles[control.id] = setTimeout(() => handler(event, control), 100);
+            } else {
+                handler(event, control);
+            }
+        }
+
+        function updateControlUIState(control, value) {
+            const inputEl = $(`#control-input-${control.id}`);
+            const labelEl = $(`#label-${control.id}`);
+            const valueEl = $(`#value-${control.id}`);
+            
+            switch(control.type) {
+                case 'toggle':
+                    const isChecked = typeof value === 'boolean' ? value : (String(value) === String(control.payloadOn));
+                    if (inputEl) inputEl.checked = isChecked;
+                    if (labelEl) labelEl.textContent = `${control.label}: ${isChecked ? 'ON' : 'OFF'}`;
+                    control.state = isChecked;
+                    break;
+                case 'slider':
+                    const numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {
+                        if (inputEl) inputEl.value = numValue;
+                        if (valueEl) valueEl.textContent = numValue;
+                        control.value = numValue;
+                    }
+                    break;
+                case 'display':
+                    if (valueEl) {
+                        valueEl.textContent = `${value !== undefined ? value : '--'} ${control.unit || ''}`.trim();
+                    }
+                    break;
+            }
+        }
+        
+        // --- MQTT 通訊層 ---
+        function connect() {
+            if (appState.mqttClient) {
+                try { appState.mqttClient.end(true); } catch(e) {}
+            }
+            
+            const brokerUrl = dom.settingBroker.value;
+            if (!brokerUrl) return showToast('Broker URL 不得為空。', 'error');
+
+            const options = {
+                clientId: dom.settingClientId.value || `iot-prodeck_${Math.random().toString(16).substr(2, 8)}`,
+                clean: dom.settingCleanSession.value === 'true',
+                keepalive: parseInt(dom.settingKeepalive.value, 10) || 60,
+                reconnectPeriod: 5000,
+            };
+            
+            const username = dom.settingUsername.value.trim();
+            const password = dom.settingPassword.value;
+            if (username) options.username = username;
+            if (password) options.password = password;
+            
+            log('INFO', `正在連線至 ${brokerUrl}...`);
+            appState.isReconnecting = true;
+            updateConnectionStatus();
+
+            try {
+                appState.mqttClient = mqtt.connect(brokerUrl, options);
+            } catch (e) {
+                log('ERR', `連線失敗: ${e.message}`);
+                appState.isReconnecting = false;
+                updateConnectionStatus();
+                return;
+            }
+            
+            appState.mqttClient.on('connect', () => {
+                log('INFO', 'MQTT 已連線。');
+                showToast('連線成功', 'success');
+                appState.isConnected = true;
+                appState.isReconnecting = false;
+                updateConnectionStatus();
+                subscribeToControlTopics();
+            });
+            
+            appState.mqttClient.on('reconnect', () => {
+                log('INFO', '正在重新連線...');
+                appState.isReconnecting = true;
+                appState.isConnected = false;
+                updateConnectionStatus();
+            });
+
+            appState.mqttClient.on('close', () => {
+                if(appState.isConnected) showToast('連線已中斷', 'error');
+                log('INFO', 'MQTT 連線已關閉。');
+                appState.isConnected = false;
+                appState.isReconnecting = false;
+                updateConnectionStatus();
+            });
+
+            appState.mqttClient.on('error', (error) => log('ERR', `MQTT 錯誤: ${error.message}`));
+            
+            appState.mqttClient.on('message', (topic, payload) => {
+                let messageStr;
+                try {
+                    messageStr = new TextDecoder('utf-8').decode(payload);
+                } catch (e) {
+                    messageStr = `[Non-UTF8 data]`;
+                }
+                log('RX', `[${topic}] ${messageStr}`);
+                
+                appState.controls.forEach(control => {
+                    const stateTopic = control.stateTopic || (control.type === 'display' ? control.topic : null);
+                    if (stateTopic && renderTopicTemplate(stateTopic) === topic) {
+                        const valuePath = control.stateValuePath || (control.type === 'display' ? control.valuePath : null);
+                        let value = messageStr;
+                        if (valuePath) {
+                            try {
+                                const jsonPayload = JSON.parse(messageStr);
+                                value = getValueByPath(jsonPayload, valuePath);
+                            } catch (e) {
+                                log('ERR', `解析 JSON Payload 失敗 (Topic: ${topic}): ${e.message}`);
+                                value = 'JSON Err';
+                            }
+                        }
+                        if (value !== undefined) {
+                            updateControlUIState(control, value);
+                        }
+                    }
+                });
+            });
+        }
+        
+        function disconnect() {
+            if (appState.mqttClient) {
+                appState.mqttClient.end();
+                log('INFO', '使用者手動中斷連線。');
+            }
+        }
+
+        function publish(topic, payload, options) {
+            if (!appState.isConnected || !appState.mqttClient) return showToast('發佈失敗: MQTT 未連線。', 'error');
+            try {
+                appState.mqttClient.publish(topic, String(payload), options);
+                log('TX', `[${topic}] (QoS ${options.qos}, Retain ${options.retain}) ${payload}`);
+            } catch (e) {
+                log('ERR', `發佈錯誤: ${e.message}`);
+            }
+        }
+        
+        function subscribeToControlTopics() {
+            if (!appState.mqttClient || !appState.mqttClient.connected) return;
+            
+            const newSubscriptions = new Set();
+            const qos = getEffectiveQos(null, 'sub');
+            
+            const mainSubTopic = getEffectiveTopic(null, 'sub');
+            if (mainSubTopic) newSubscriptions.add(mainSubTopic);
+
+            appState.controls.forEach(control => {
+                const stateTopic = control.stateTopic || (control.type === 'display' ? control.topic : null);
+                if (stateTopic) {
+                    newSubscriptions.add(renderTopicTemplate(stateTopic));
+                }
+            });
+
+            const toUnsubscribe = [...appState.activeSubscriptions].filter(t => !newSubscriptions.has(t));
+            const toSubscribe = [...newSubscriptions].filter(t => !appState.activeSubscriptions.has(t));
+
+            if (toUnsubscribe.length > 0) {
+                appState.mqttClient.unsubscribe(toUnsubscribe, (err) => {
+                    if (err) log('ERR', `取消訂閱失敗: ${err.message}`);
+                    else log('INFO', `已取消訂閱: ${toUnsubscribe.join(', ')}`);
+                });
+            }
+            if (toSubscribe.length > 0) {
+                appState.mqttClient.subscribe(toSubscribe, { qos }, (err) => {
+                    if (err) log('ERR', `訂閱失敗: ${err.message}`);
+                    else log('INFO', `已訂閱: ${toSubscribe.join(', ')}`);
+                });
+            }
+            
+            appState.activeSubscriptions = newSubscriptions;
+        }
+
+        // --- 主題與設定輔助函式 ---
+        function renderTopicTemplate(template) {
+            const devId = dom.settingDevId.value || 'default-device';
+            return template.replace(/{dev}/g, devId);
+        }
+
+        function getEffectiveTopic(control, type = 'pub') {
+            if (type === 'pub' && control && control.topic) return renderTopicTemplate(control.topic);
+            const template = type === 'pub' ? dom.settingPubTpl.value : dom.settingSubTpl.value;
+            let topic = renderTopicTemplate(template);
+            const prefix = dom.settingPrefix.value;
+            const suffix = dom.settingSuffix.value;
+            if (prefix) topic = `${prefix}/${topic}`;
+            if (suffix) topic = `${topic}/${suffix}`;
+            return topic;
+        }
+
+        function getEffectiveQos(control, type = 'pub') {
+            const qosValue = (type === 'pub' ? dom.settingGlobalPubQos : dom.settingGlobalSubQos).value;
+            return parseInt(qosValue, 10);
+        }
+        
+        function getEffectiveRetain(control) {
+            return dom.settingGlobalRetain.value === 'true';
+        }
+
+        // --- 設定檔管理 ---
+        function saveSettingsToLocalStorage() {
+            const settings = {
+                broker: dom.settingBroker.value,
+                devId: dom.settingDevId.value,
+                clientId: dom.settingClientId.value,
+                username: dom.settingUsername.value,
+                password: dom.settingPassword.value,
+                cleanSession: dom.settingCleanSession.value,
+                keepalive: dom.settingKeepalive.value,
+                subTpl: dom.settingSubTpl.value,
+                pubTpl: dom.settingPubTpl.value,
+                prefix: dom.settingPrefix.value,
+                suffix: dom.settingSuffix.value,
+                globalPubQos: dom.settingGlobalPubQos.value,
+                globalSubQos: dom.settingGlobalSubQos.value,
+                globalRetain: dom.settingGlobalRetain.value,
+                accentColor: dom.settingAccentColor.value,
+                lastProfile: appState.currentProfileName
+            };
+            localStorage.setItem('iot-prodeck-settings-v4', JSON.stringify(settings));
+        }
+
+        function loadSettingsFromLocalStorage() {
+            try {
+                const settings = JSON.parse(localStorage.getItem('iot-prodeck-settings-v4'));
+                if (settings) {
+                    dom.settingBroker.value = settings.broker || '';
+                    dom.settingDevId.value = settings.devId || '';
+                    dom.settingClientId.value = settings.clientId || '';
+                    dom.settingUsername.value = settings.username || '';
+                    dom.settingPassword.value = settings.password || '';
+                    dom.settingCleanSession.value = settings.cleanSession || 'true';
+                    dom.settingKeepalive.value = settings.keepalive || '60';
+                    dom.settingSubTpl.value = settings.subTpl || 'devices/{dev}/commands';
+                    dom.settingPubTpl.value = settings.pubTpl || 'devices/{dev}/events';
+                    dom.settingPrefix.value = settings.prefix || '';
+                    dom.settingSuffix.value = settings.suffix || '';
+                    dom.settingGlobalPubQos.value = settings.globalPubQos || '0';
+                    dom.settingGlobalSubQos.value = settings.globalSubQos || '0';
+                    dom.settingGlobalRetain.value = settings.globalRetain || 'false';
+                    dom.settingAccentColor.value = settings.accentColor || '#007aff';
+                    appState.currentProfileName = settings.lastProfile;
+                    updateAccentColor();
+                }
+            } catch (e) {
+                log('ERR', '讀取 localStorage 設定失敗。');
+            }
+        }
+        
+        async function loadProfilesFromDB() {
+            try {
+                appState.profileNames = (await dbGet('profileNames')) || [];
+                appState.profiles = {};
+                for (const name of appState.profileNames) {
+                    appState.profiles[name] = await dbGet(`profile:${name}`);
+                }
+                renderProfileSelector();
+                if (appState.currentProfileName && appState.profiles[appState.currentProfileName]) {
+                    applyProfile(appState.currentProfileName);
+                } else if (appState.profileNames.length > 0) {
+                    applyProfile(appState.profileNames[0]);
+                } else {
+                    renderControls();
+                    renderControlManager();
+                }
+            } catch (e) { log('ERR', `從 DB 讀取設定檔失敗: ${e.message}`); }
+        }
+        
+        function renderProfileSelector() {
+            dom.profileSelect.innerHTML = '';
+            appState.profileNames.forEach(name => {
+                const option = document.createElement('option', { value: name });
+                option.value = name; option.textContent = name;
+                dom.profileSelect.appendChild(option);
+            });
+            if (appState.currentProfileName) dom.profileSelect.value = appState.currentProfileName;
+        }
+        
+        function applyProfile(name) {
+            const profile = appState.profiles[name];
+            if (!profile) return log('ERR', `套用不存在的設定檔: ${name}`);
+            const { conn={}, topic={}, ui={}, controls=[] } = profile;
+            dom.settingBroker.value = conn.broker || '';
+            dom.settingDevId.value = conn.devId || '';
+            dom.settingClientId.value = conn.clientId || '';
+            dom.settingUsername.value = conn.username || '';
+            dom.settingPassword.value = conn.password || '';
+            dom.settingCleanSession.value = String(conn.cleanSession ?? 'true');
+            dom.settingKeepalive.value = conn.keepalive || '60';
+            dom.settingSubTpl.value = topic.subTpl || 'devices/{dev}/commands';
+            dom.settingPubTpl.value = topic.pubTpl || 'devices/{dev}/events';
+            dom.settingPrefix.value = topic.prefix || '';
+            dom.settingSuffix.value = topic.suffix || '';
+            dom.settingGlobalPubQos.value = topic.globalPubQos || '0';
+            dom.settingGlobalSubQos.value = topic.globalSubQos || '0';
+            dom.settingGlobalRetain.value = String(topic.globalRetain ?? 'false');
+            dom.settingAccentColor.value = ui.accentColor || '#007aff';
+            appState.controls = controls;
+            appState.currentProfileName = name;
+            dom.profileSelect.value = name;
+            dom.profileNameInput.value = name;
+            updateAccentColor();
+            renderControls();
+            renderControlManager();
+            saveSettingsToLocalStorage();
+            subscribeToControlTopics();
+            log('INFO', `已載入設定檔: ${name}`);
+        }
+        
+        async function saveCurrentProfile() {
+            const name = dom.profileNameInput.value.trim();
+            if (!name) return showToast('請輸入設定檔名稱。', 'error');
+            const profile = {
+                conn: { broker: dom.settingBroker.value, devId: dom.settingDevId.value, clientId: dom.settingClientId.value, username: dom.settingUsername.value, password: dom.settingPassword.value, cleanSession: dom.settingCleanSession.value === 'true', keepalive: parseInt(dom.settingKeepalive.value, 10)},
+                topic: { subTpl: dom.settingSubTpl.value, pubTpl: dom.settingPubTpl.value, prefix: dom.settingPrefix.value, suffix: dom.settingSuffix.value, globalPubQos: parseInt(dom.settingGlobalPubQos.value, 10), globalSubQos: parseInt(dom.settingGlobalSubQos.value, 10), globalRetain: dom.settingGlobalRetain.value === 'true'},
+                ui: { accentColor: dom.settingAccentColor.value },
+                controls: appState.controls,
+            };
+            try {
+                await dbSet(`profile:${name}`, profile);
+                appState.profiles[name] = profile;
+                if (!appState.profileNames.includes(name)) {
+                    appState.profileNames.push(name);
+                    await dbSet('profileNames', appState.profileNames);
+                }
+                appState.currentProfileName = name;
+                renderProfileSelector();
+                saveSettingsToLocalStorage();
+                showToast(`設定檔 "${name}" 已儲存`, 'success');
+            } catch (e) { showToast(`儲存失敗`, 'error'); }
+        }
+        
+        async function deleteCurrentProfile() {
+            const name = dom.profileSelect.value;
+            if (!name || !confirm(`確定要刪除設定檔 "${name}" 嗎？此操作無法復原。`)) return;
+            try {
+                await dbDelete(`profile:${name}`);
+                delete appState.profiles[name];
+                appState.profileNames = appState.profileNames.filter(n => n !== name);
+                await dbSet('profileNames', appState.profileNames);
+                appState.currentProfileName = null;
+                dom.profileNameInput.value = '';
+                renderProfileSelector();
+                if (appState.profileNames.length > 0) applyProfile(appState.profileNames[0]);
+                else { appState.controls = []; renderControls(); renderControlManager(); }
+                showToast(`設定檔 "${name}" 已刪除`);
+            } catch (e) { log('ERR', `刪除設定檔失敗: ${e.message}`); }
+        }
+        
+        function exportProfiles(all = false) {
+            const safeClone = (obj) => JSON.parse(JSON.stringify(obj));
+            let dataToExport;
+            const version = "v400";
+            if (all) {
+                if (Object.keys(appState.profiles).length === 0) return showToast('沒有可匯出的設定檔。', 'error');
+                const profilesToExport = safeClone(appState.profiles);
+                for (const name in profilesToExport) {
+                    if (profilesToExport[name].conn?.password) delete profilesToExport[name].conn.password;
+                }
+                dataToExport = { version, profiles: profilesToExport };
+            } else {
+                if (!appState.currentProfileName) return showToast('沒有可匯出的目前設定檔。', 'error');
+                const profileToExport = safeClone(appState.profiles[appState.currentProfileName]);
+                if (profileToExport.conn?.password) delete profileToExport.conn.password;
+                dataToExport = { version, profileName: appState.currentProfileName, cfg: profileToExport };
+            }
+            const jsonString = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = all ? 'iot-prodeck_all_profiles_no_pwd.json' : `iot-prodeck_profile_${appState.currentProfileName}_no_pwd.json`;
+            a.click(); a.remove(); URL.revokeObjectURL(url);
+            log('INFO', `已匯出安全的設定檔 (不含密碼): ${a.download}`);
+            showToast('已匯出設定檔 (密碼已移除)');
+        }
+        
+        function importProfiles() {
+            const file = dom.importFileInput.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (!["v300", "v400"].includes(data.version)) throw new Error('不相容的設定檔版本。');
+                    let importedCount = 0;
+                    const processImport = async (name, profile) => {
+                        await dbSet(`profile:${name}`, profile);
+                        if (!appState.profileNames.includes(name)) appState.profileNames.push(name);
+                        importedCount++;
+                    };
+                    if (data.profiles) {
+                        for (const name in data.profiles) await processImport(name, data.profiles[name]);
+                    } else if (data.cfg && data.profileName) {
+                        await processImport(data.profileName, data.cfg);
+                    } else throw new Error('無效的檔案格式。');
+                    await dbSet('profileNames', appState.profileNames);
+                    await loadProfilesFromDB();
+                    showToast(`成功匯入 ${importedCount} 個設定檔`, 'success');
+                    log('INFO', '匯入完成，請記得手動檢查並填寫密碼。');
+                } catch (err) { alert(`匯入失敗: ${err.message}`); }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- 控制項編輯器 Modal 邏輯 ---
+        function openControlEditor(control = null) {
+            dom.controlEditorForm.reset();
+            if (control) {
+                dom.modalTitle.textContent = '編輯控制項';
+                dom.controlId.value = control.id;
+                dom.controlLabel.value = control.label;
+                dom.controlGroup.value = control.group || '';
+                dom.controlType.value = control.type;
+                dom.controlStyle.value = control.style || 'neutral';
+                dom.controlTopic.value = control.topic || '';
+                dom.controlCustomColor.value = control.customColor || '#333333';
+                switch (control.type) {
+                    case 'button': dom.controlPayload.value = control.payload || ''; break;
+                    case 'toggle':
+                        dom.controlPayloadOn.value = control.payloadOn || '';
+                        dom.controlPayloadOff.value = control.payloadOff || '';
+                        dom.controlStateTopic.value = control.stateTopic || '';
+                        dom.controlStateValuePath.value = control.stateValuePath || '';
+                        break;
+                    case 'slider':
+                        dom.controlPayloadTpl.value = control.payloadTpl || '';
+                        dom.controlMin.value = control.min ?? 0;
+                        dom.controlMax.value = control.max ?? 100;
+                        dom.controlStep.value = control.step ?? 1;
+                        dom.controlLive.checked = control.live || false;
+                        dom.controlStateTopic.value = control.stateTopic || '';
+                        dom.controlStateValuePath.value = control.stateValuePath || '';
+                        break;
+                    case 'display':
+                        dom.displayTopic.value = control.topic || '';
+                        dom.displayValuePath.value = control.valuePath || '';
+                        dom.displayUnit.value = control.unit || '';
+                        dom.displayLink.value = control.link || '';
+                        break;
+                }
+            } else {
+                dom.modalTitle.textContent = '新增控制項';
+                dom.controlId.value = generateId();
+            }
+            updateEditorFieldsVisibility();
+            dom.controlEditorModal.style.display = 'block';
+        }
+
+        function closeControlEditor() { dom.controlEditorModal.style.display = 'none'; }
+
+        function updateEditorFieldsVisibility() {
+            const type = dom.controlType.value;
+            ['button', 'toggle', 'slider', 'display'].forEach(t => dom[`${t}Fields`].classList.toggle('hidden', t !== type));
+            const isPublishable = ['button', 'toggle', 'slider'].includes(type);
+            const isSubscribable = ['display', 'toggle', 'slider'].includes(type);
+            dom.publishFields.classList.toggle('hidden', !isPublishable);
+            dom.subscribeFields.classList.toggle('hidden', !isSubscribable);
+            dom.stateSyncFields.classList.toggle('hidden', !['toggle', 'slider'].includes(type));
+            dom.displayFields.classList.toggle('hidden', type !== 'display');
+            dom.controlStyle.parentElement.classList.toggle('hidden', type === 'display');
+            dom.customColorField.classList.toggle('hidden', dom.controlStyle.value !== 'custom');
+        }
+
+        function saveControl() {
+            const id = dom.controlId.value;
+            const type = dom.controlType.value;
+            const style = dom.controlStyle.value;
+            const newControl = {
+                id, type, style,
+                label: dom.controlLabel.value.trim(),
+                group: dom.controlGroup.value.trim(),
+            };
+            if (style === 'custom') {
+                newControl.customColor = dom.controlCustomColor.value;
+                if (dom.controlStyle.options[dom.controlStyle.selectedIndex].text.includes('Ghost')) {
+                    newControl.isGhostCustom = true;
+                }
+            }
+            if (type !== 'display') {
+                newControl.topic = dom.controlTopic.value.trim() || null;
+            }
+            if (['toggle', 'slider'].includes(type)) {
+                newControl.stateTopic = dom.controlStateTopic.value.trim() || null;
+                newControl.stateValuePath = dom.controlStateValuePath.value.trim() || null;
+            }
+            switch(type) {
+                case 'button': newControl.payload = dom.controlPayload.value; break;
+                case 'toggle': Object.assign(newControl, { payloadOn: dom.controlPayloadOn.value, payloadOff: dom.controlPayloadOff.value, state: false }); break;
+                case 'slider': Object.assign(newControl, { payloadTpl: dom.controlPayloadTpl.value, min: parseFloat(dom.controlMin.value), max: parseFloat(dom.controlMax.value), step: parseFloat(dom.controlStep.value), value: parseFloat(dom.controlMin.value), live: dom.controlLive.checked }); break;
+                case 'display': Object.assign(newControl, { topic: dom.displayTopic.value.trim(), valuePath: dom.displayValuePath.value.trim(), unit: dom.displayUnit.value.trim(), link: dom.displayLink.value.trim() }); break;
+            }
+            const existingIndex = appState.controls.findIndex(c => c.id === id);
+            if (existingIndex > -1) appState.controls[existingIndex] = newControl;
+            else appState.controls.push(newControl);
+            renderControls();
+            renderControlManager();
+            if (appState.isConnected) subscribeToControlTopics();
+            closeControlEditor();
+            log('INFO', `控制項 "${newControl.label}" 已儲存。`);
+        }
+
+        function deleteControl(id) {
+            if (confirm('確定要刪除這個控制項嗎？')) {
+                appState.controls = appState.controls.filter(c => c.id !== id);
+                renderControls();
+                renderControlManager();
+                if (appState.isConnected) subscribeToControlTopics();
+                log('INFO', `控制項 (ID: ${id}) 已刪除。`);
+            }
+        }
+        
+        function createDefaultControls() {
+            appState.controls = [
+                { id: generateId(), type: 'button', label: '外門開啟', group: '門控', style: 'good', payload: 'D1O' },
+                { id: generateId(), type: 'button', label: '外門關閉', group: '門控', style: 'bad', payload: 'D1C' },
+                { id: generateId(), type: 'toggle', label: '客廳燈', group: '客廳', style: 'neutral', payloadOn: 'ON', payloadOff: 'OFF', state: false, stateTopic: 'devices/{dev}/light/state', stateValuePath: 'status' },
+                { id: generateId(), type: 'slider', label: '亮度', group: '客廳', style: 'neutral', min: 0, max: 255, step: 1, value: 128, live: true, payloadTpl: '{"brightness":{v}}', stateTopic: 'devices/{dev}/light/state', stateValuePath: 'brightness' },
+                { id: generateId(), type: 'display', label: '溫度', group: '客廳', topic: 'devices/{dev}/telemetry', valuePath: 'temperature', unit: '°C' },
+            ];
+        }
+
+        // --- 事件監聽器設定 ---
+        function setupEventListeners() {
+            dom.connectBtn.addEventListener('click', connect);
+            dom.disconnectBtn.addEventListener('click', disconnect);
+            dom.tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    dom.tabs.forEach(t => t.classList.remove('active'));
+                    dom.tabContents.forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    $(`#${tab.dataset.tab}`).classList.add('active');
+                });
+            });
+            dom.quickCommandForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const payload = dom.qcPayload.value;
+                if (!payload || !appState.isConnected) return;
+                const topic = dom.qcTopic.value.trim() || getEffectiveTopic(null);
+                const qos = dom.qcQos.value === "-1" ? getEffectiveQos(null) : parseInt(dom.qcQos.value, 10);
+                const retain = dom.qcRetain.value === "-1" ? getEffectiveRetain(null) : dom.qcRetain.value === "1";
+                publish(topic, payload, { qos, retain });
+                dom.qcPayload.value = '';
+            });
+            const debouncedSave = debounce(saveSettingsToLocalStorage, 500);
+            const debouncedSubscribe = debounce(subscribeToControlTopics, 500);
+            const inputsToSave = [dom.settingBroker, dom.settingClientId, dom.settingUsername, dom.settingPassword, dom.settingCleanSession, dom.settingKeepalive, dom.settingPubTpl, dom.settingGlobalPubQos, dom.settingGlobalSubQos, dom.settingGlobalRetain];
+            inputsToSave.forEach(input => input.addEventListener('input', debouncedSave));
+            const inputsToSaveAndSubscribe = [dom.settingDevId, dom.settingSubTpl, dom.settingPrefix, dom.settingSuffix];
+            inputsToSaveAndSubscribe.forEach(input => input.addEventListener('input', () => { debouncedSave(); if(appState.isConnected) debouncedSubscribe(); }));
+            dom.settingAccentColor.addEventListener('input', () => { updateAccentColor(); debouncedSave(); });
+            dom.profileSelect.addEventListener('change', (e) => applyProfile(e.target.value));
+            dom.profileSaveBtn.addEventListener('click', saveCurrentProfile);
+            dom.profileDeleteBtn.addEventListener('click', deleteCurrentProfile);
+            dom.profileExportCurrentBtn.addEventListener('click', () => exportProfiles(false));
+            dom.profileExportAllBtn.addEventListener('click', () => exportProfiles(true));
+            dom.profileImportBtn.addEventListener('click', () => dom.importFileInput.click());
+            dom.importFileInput.addEventListener('change', importProfiles);
+            dom.addControlBtn.addEventListener('click', () => openControlEditor(null));
+            dom.controlManagerList.addEventListener('click', (e) => {
+                const target = e.target.closest('button');
+                if (!target) return;
+                const controlId = target.dataset.id;
+                const control = appState.controls.find(c => c.id === controlId);
+                if (target.classList.contains('edit-btn') && control) openControlEditor(control);
+                else if (target.classList.contains('delete-btn')) deleteControl(controlId);
+            });
+            dom.closeModalBtn.addEventListener('click', closeControlEditor);
+            dom.cancelControlBtn.addEventListener('click', closeControlEditor);
+            dom.controlEditorModal.addEventListener('click', (e) => { if (e.target === dom.controlEditorModal) closeControlEditor(); });
+            dom.controlType.addEventListener('change', updateEditorFieldsVisibility);
+            dom.controlStyle.addEventListener('change', updateEditorFieldsVisibility);
+            dom.controlEditorForm.addEventListener('submit', (e) => { e.preventDefault(); saveControl(); });
+            // ... (拖曳排序和鍵盤快捷鍵的程式碼維持不變)
+        }
+        
+        function updateAccentColor() {
+            document.documentElement.style.setProperty('--accent', dom.settingAccentColor.value);
+            const logo = $('.brand .logo');
+            if (logo) logo.style.backgroundColor = dom.settingAccentColor.value;
+        }
+        
+        // --- 應用程式初始化 ---
+        async function init() {
+            log('INFO', 'IoT ProDeck v4.0 啟動中...');
+            if (typeof mqtt === 'undefined') {
+                return alert('錯誤: mqtt.min.js 未載入，應用程式無法運作。');
+            }
+            loadSettingsFromLocalStorage();
+            await initDB();
+            await loadProfilesFromDB();
+            setupEventListeners();
+            updateConnectionStatus();
+            log('INFO', '應用程式初始化完成。');
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // [PWA] 註冊 Service Worker
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').then(registration => {
+              console.log('ServiceWorker registration successful with scope: ', registration.scope);
+              log('INFO', 'PWA Service Worker 已註冊。');
+            }, err => {
+              console.log('ServiceWorker registration failed: ', err);
+              log('ERR', `PWA Service Worker 註冊失敗: ${err}`);
+            });
+          });
+        }
+    })();
+    </script>
+</body>
+</html>
