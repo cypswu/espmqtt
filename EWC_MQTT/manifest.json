@@ -1,7 +1,11 @@
 {
+  "id": "./?source=pwa",                          // ★ 新增：App 唯一識別；避免和一般分頁搞混
   "name": "物聯控制台 IoT ProDeck",
   "short_name": "物聯控制台",
-  "start_url": ".",
+  "lang": "zh-TW",                                // ★ 新增：語系
+  "dir": "ltr",
+  "start_url": "./?source=pwa",                   // ★ 調整：帶參數，啟動時較易判斷是 PWA 啟動
+  "scope": "./",                                  // ★ 新增：限制在目前資料夾（子路徑更安全）
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#1e1e1e",
@@ -10,12 +14,14 @@
     {
       "src": "icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"                   // ★ 新增：maskable，安裝圖示不會被裁切
     },
     {
       "src": "icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

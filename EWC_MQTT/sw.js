@@ -1,90 +1,146 @@
-/* IoT ProDeck - PWA Caching Logic */
-// sw.js 頂端（前後文錨點：其他 const 之前）
-const params = new URL(self.location).searchParams;
-const SW_VERSION = params.get('v') || '1';
-const CACHE_PREFIX = 'pwa-cache-';
-const CACHE_NAME = `${CACHE_PREFIX}${SW_VERSION}`;
+/* IoT ProDeck — Service Worker (穩定版)
+ * 重點：
+ *  1) 以 sw.js?v=APP_VERSION 帶入快取版號（不用手動改多處）
+ *  2) APP_SHELL 清單使用相對路徑 ./，在 GitHub Pages 子路徑也正確
+ *  3) 安裝：預先快取 App Shell；啟用：清理舊版快取並接管頁面
+ *  4) 取用策略：App Shell → Cache First；其他 → Network First（失敗回快取）
+ *  5) 只快取 GET & 只在 response.ok 時寫入（避免髒資料）
+ *  6) 提供 SKIP_WAITING 訊息通道（可由頁面觸發「立即使用新版」）
+ *  7) 可選：Navigation Preload（加速第一屏）
+ */
 
-// 定義 App Shell 的核心資源
+/* -------------------------
+ * 1) 版本與快取名稱
+ * ------------------------- */
+// ★ 注意：在 SW 裡要用 self.location.href（字串）再丟進 URL()；
+//         直接 new URL(self.location) 有瀏覽器會丟錯，導致「script evaluation failed」。
+let SW_VERSION = '1';
+try {
+  const url = new URL(self.location.href);
+  SW_VERSION = url.searchParams.get('v') || SW_VERSION;
+} catch (e) {
+  // 保留預設
+}
+
+const CACHE_PREFIX = 'pwa-cache-';
+const CACHE_NAME   = `${CACHE_PREFIX}${SW_VERSION}`;
+
+/* -------------------------
+ * 2) App Shell（核心檔案）
+ *    用 ./ 開頭的相對路徑，會以 SW 的 scope 當基準
+ * ------------------------- */
 const APP_SHELL = [
   './',
   './index.html',
+  './manifest.json',
   './mqtt.min.js',
-  './manifest.webmanifest'
+  './notifications.html',         // 你專案也有這頁，一併快取
   './icons/icon-192x192.png',
   './icons/icon-512x512.png',
 ];
 
-// install 事件：在 Service Worker 安裝時，快取 App Shell 資源
-self.addEventListener('install', (e) => {
-  console.log('[Service Worker] Install');
-  e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Caching all: app shell and content');
-      return cache.addAll(APP_SHELL);
-    })
+/* （可選）離線備援頁：若你有 offline.html 就打開這段 */
+const OFFLINE_URL = null; // 例：'./offline.html'
+if (OFFLINE_URL) APP_SHELL.push(OFFLINE_URL);
+
+/* -------------------------
+ * 3) install：預先快取 App Shell
+ * ------------------------- */
+self.addEventListener('install', (event) => {
+  console.log('[SW] install', { CACHE_NAME, SW_VERSION });
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
   );
-  // 強制等待中的 Service Worker 立即變為啟用狀態
+  // 讓新 SW 進入 waiting 狀態（等待 activate）
   self.skipWaiting();
 });
 
-// activate 事件：在 Service Worker 啟用時，清理舊版本的快取
-self.addEventListener('activate', (e) => {
-  console.log('[Service Worker] Activate');
-  e.waitUntil(
-    caches.keys().then((keyList) => {
-      return Promise.all(keyList.map((key) => {
-        // 如果快取名稱不是目前的版本，就刪除它
-        if (key !== CACHE_NAME) {
-          console.log('[Service Worker] Removing old cache', key);
-          return caches.delete(key);
-        }
-      }));
-    })
+/* -------------------------
+ * 4) activate：清理舊快取 & 接管頁面
+ * ------------------------- */
+self.addEventListener('activate', (event) => {
+  console.log('[SW] activate');
+  event.waitUntil(
+    (async () => {
+      // 可選：開啟 Navigation Preload（HTTP/2 伺服器上可加速導航）
+      try { await self.registration.navigationPreload?.enable(); } catch (e) {}
+
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME) // 只刪自家前綴
+          .map((k) => {
+            console.log('[SW] delete old cache', k);
+            return caches.delete(k);
+          })
+      );
+      await self.clients.claim(); // 立刻控制所有 client
+    })()
   );
-  // 讓 Service Worker 立即控制所有客戶端
-  return self.clients.claim();
 });
 
-// fetch 事件：攔截網路請求，並根據資源類型採用不同快取策略
-self.addEventListener('fetch', (e) => {
-  const url = new URL(e.request.url);
+/* -------------------------
+ * 5) fetch：取用策略
+ *    - 只處理 GET（避免把 POST/PUT 等不可重放請求放入快取）
+ *    - 同源且屬於 App Shell → Cache First
+ *    - 其他 → Network First（失敗回快取；導覽請求可回離線頁）
+ * ------------------------- */
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
 
-  // 僅處理同源請求
-  if (url.origin === location.origin) {
-    // 對於 App Shell 內的資源，採用 "Cache-first" 策略
-    // 這裡檢查路徑是否完全匹配 APP_SHELL 中的任一項
-    // new URL(item, self.location.href).pathname 用於將相對路徑轉為絕對路徑以進行比較
-    const isAppShellResource = APP_SHELL.some(item => new URL(item, self.location.href).pathname === url.pathname);
-    
-    if (isAppShellResource) {
-      e.respondWith(
-        caches.match(e.request).then((response) => {
-          // 如果快取中有，直接回傳；否則，從網路請求
-          return response || fetch(e.request);
-        })
-      );
-      return;
-    }
+  const url = new URL(req.url);
+  const sameOrigin = url.origin === self.location.origin;
+
+  // 判斷是否為 App Shell 資源（用 scope + 相對路徑比對）
+  const isShell = sameOrigin && APP_SHELL.some(
+    (p) => new URL(p, self.location.href).pathname === url.pathname
+  );
+
+  if (isShell) {
+    // ★ App Shell：Cache First → 快
+    event.respondWith(
+      caches.match(req).then((cached) => cached || fetch(req))
+    );
+    return;
   }
 
-  // 對於所有其他請求（例如未在快取列表中的同源請求或跨域請求）
-  // 採用 "Network-first" 策略
-  e.respondWith(
-    fetch(e.request)
-      .then((response) => {
-        // 成功從網路取得回應
-        // 複製一份回應，因為 request 和 response stream 只能被使用一次
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          // 將新的回應存入快取
-          cache.put(e.request, responseToCache);
-        });
-        return response;
-      })
-      .catch(() => {
-        // 當網路請求失敗時 (例如離線)，嘗試從快取中尋找備份
-        return caches.match(e.request);
-      })
-  );
+  // 其餘：Network First（新）→ 失敗回快取（穩）
+  event.respondWith((async () => {
+    // 可用 navigation preload 的預取回應（若啟用）
+    const preload = await event.preloadResponse;
+
+    try {
+      const netRes = preload || await fetch(req);
+      // 僅在 200-299 時寫入快取；且只快取同源（避免把外站大量塞入）
+      if (sameOrigin && netRes && netRes.ok) {
+        const copy = netRes.clone();
+        caches.open(CACHE_NAME).then((c) => c.put(req, copy));
+      }
+      return netRes;
+    } catch (err) {
+      // 網路失敗 → 回快取
+      const cached = await caches.match(req);
+      if (cached) return cached;
+
+      // 若是導覽請求（HTML），且有離線備援頁 → 回離線頁
+      if (OFFLINE_URL && req.mode === 'navigate') {
+        const offline = await caches.match(OFFLINE_URL);
+        if (offline) return offline;
+      }
+      throw err;
+    }
+  })());
+});
+
+/* -------------------------
+ * 6) 訊息通道：讓頁面要求「立即套用新版」
+ *    用法（頁面端）：
+ *      navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' })
+ * ------------------------- */
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    console.log('[SW] SKIP_WAITING requested by client');
+    self.skipWaiting();
+  }
 });
