@@ -1,5 +1,7 @@
 /* IoT ProDeck - PWA Caching Logic */
-const SW_VERSION = '2.3.1';                 // ★ 版本字串，每次修改請遞增
+// sw.js 頂端（前後文錨點：其他 const 之前）
+const params = new URL(self.location).searchParams;
+const SW_VERSION = params.get('v') || '1';
 const CACHE_PREFIX = 'pwa-cache-';
 const CACHE_NAME = `${CACHE_PREFIX}${SW_VERSION}`;
 

@@ -1,530 +1,245 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- [PWA] 更新 manifest 連結為 .webmanifest 副檔名 -->
-    <link rel="manifest" href="manifest.webmanifest">
-    <meta name="theme-color" content="#1e1e1e">
-    <!-- [PWA] 新增 iOS 支援相關 meta -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="IoT ProDeck">
-    
-    <title>IoT ProDeck | PWA 可訂閱狀態 MQTT 控制中心 v4.0</title>
-    <style>
-        /* --- 全域與主題變數 --- */
-        :root {
-            --bg: #121212;
-            --card: #1e1e1e;
-            --ink: #e0e0e0;
-            --muted: #888;
-            --line: #333;
-            --accent: #007aff; /* 可由使用者設定 */
-            --good: #28a745;
-            --bad: #dc3545;
-            --neutral: #6c757d;
-            --info: #17a2b8;
-            --err: #ffc107;
-            --radius: 18px;
-            --shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-        /* --- 基礎樣式重設 --- */
-        *, *::before, *::after { box-sizing: border-box; }
-        html { scroll-behavior: smooth; }
-        body {
-            margin: 0;
-            padding-top: 60px; /* App Bar 高度 */
-            padding-bottom: 250px; /* Logger 高度 */
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: var(--bg);
-            color: var(--ink);
-            line-height: 1.6;
-            transition: background-color 0.3s;
-        }
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1e1e1e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="IoT ProDeck">
+  <!-- App meta (單一來源) -->
+  <meta name="app-name-en" content="IoT ProDeck">
+  <meta name="app-name-zh" content="物聯控制台">
+  <meta name="app-version" content="4.1.0">
 
-        /* --- 容器與佈局 --- */
-        .container {
-            padding: 16px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+  <title>Loading…</title>
 
-        /* --- App Bar --- */
-        .app-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 60px;
-            background-color: var(--card);
-            border-bottom: 1px solid var(--line);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 16px;
-            z-index: 1000;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        .brand {
-            display: flex;
-            align-items: center;
-            font-weight: 600;
-            font-size: 18px;
-        }
-        .brand .logo {
-            width: 24px;
-            height: 24px;
-            background-color: var(--accent);
-            border-radius: 6px;
-            margin-right: 12px;
-            transition: background-color 0.3s;
-        }
-        .status-capsule {
-            display: flex;
-            align-items: center;
-            padding: 4px 12px;
-            border-radius: 99px;
-            font-size: 14px;
-            font-weight: 500;
-            transition: background-color 0.3s, color 0.3s;
-        }
-        .status-capsule.disconnected { background-color: var(--bad); color: white; }
-        .status-capsule.reconnecting { background-color: var(--err); color: #333; }
-        .status-capsule.connected { background-color: var(--good); color: white; }
-        
-        .app-bar-actions button {
-            margin-left: 8px;
-        }
+  <style>
+    /* --- 全域與主題變數 --- */
+    :root {
+      --bg:#121212; --card:#1e1e1e; --ink:#e0e0e0; --muted:#888; --line:#333;
+      --accent:#007aff; --good:#28a745; --bad:#dc3545; --neutral:#6c757d;
+      --info:#17a2b8; --err:#ffc107; --radius:18px; --shadow:0 4px 12px rgba(0,0,0,.2);
+    }
 
-        /* --- Tabs --- */
-        .tabs {
-            display: flex;
-            justify-content: center;
-            padding: 16px 0;
-        }
-        .tab-link {
-            padding: 8px 24px;
-            margin: 0 8px;
-            border-radius: 99px;
-            cursor: pointer;
-            font-weight: 500;
-            border: 1px solid transparent;
-            background-color: var(--card);
-            color: var(--muted);
-            transition: all 0.2s ease-in-out;
-            user-select: none;
-        }
-        .tab-link.active {
-            background-color: var(--accent);
-            color: white;
-            border-color: var(--accent);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-        }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+    /* --- 基礎樣式重設 --- */
+    *,*::before,*::after{ box-sizing:border-box; }
+    html{ scroll-behavior:smooth; }
+    body{
+      margin:0; padding-top:60px; padding-bottom:250px;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+      background-color:var(--bg); color:var(--ink); line-height:1.6; transition:background-color .3s;
+    }
 
-        /* --- 卡片 (Card) --- */
-        .card {
-            background-color: var(--card);
-            border-radius: var(--radius);
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: var(--shadow);
-            border: 1px solid var(--line);
-        }
-        .card-title {
-            margin: -20px -20px 20px -20px;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--line);
-            font-size: 1.1em;
-            font-weight: 600;
-        }
-        .card-subtitle {
-            font-size: 0.9em;
-            color: var(--muted);
-            margin-top: -10px;
-            margin-bottom: 15px;
-            font-weight: 400;
-        }
-        
-        /* --- 控制項網格 --- */
-        .controls-grid {
-            display: grid;
-            gap: 16px;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        }
+    /* --- 容器與佈局 --- */
+    .container{ padding:16px; max-width:1200px; margin:0 auto; }
 
-        .control-group-grid {
-            display: grid;
-            gap: 16px;
-            /* 手機 2 欄，平板/桌面 4 欄 */
-            grid-template-columns: repeat(2, 1fr);
-        }
-        @media (min-width: 768px) {
-            .control-group-grid { grid-template-columns: repeat(4, 1fr); }
-        }
+    /* --- App Bar --- */
+    .app-bar{
+      position:fixed; top:0; left:0; right:0; height:60px;
+      background-color:var(--card); border-bottom:1px solid var(--line);
+      display:flex; align-items:center; justify-content:flex-start;   /* 改：改成靠左排列 */
+      gap:.5rem;                                                      /* 新：項目間距 */
+      flex-wrap:nowrap;                                               /* 新：不換行 */
+      padding:0 16px; z-index:1000; box-shadow:0 2px 8px rgba(0,0,0,.2);
+    }
+    .brand{
+      display:flex; align-items:center; gap:.5rem;                    /* 新：加 gap */
+      font-weight:600; font-size:18px;
+      min-width:0;                                                    /* 新：允許收縮 */
+      flex:1 1 auto;                                                  /* 新：吃掉彈性空間 */
+    }
+    .brand .logo{
+      width:24px; height:24px; background-color:var(--accent);
+      border-radius:6px; margin-right:12px; transition:background-color .3s;
+    }
+    .brand span{
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;    /* 新：名稱過長截斷 */
+      max-width:48vw;                                                 /* 新：避免擠壓右側 */
+    }
 
-        /* --- 表單元件 --- */
-        .form-group { margin-bottom: 16px; }
-        .form-group label {
-            display: block;
-            margin-bottom: 6px;
-            font-weight: 500;
-            color: var(--muted);
-        }
-        input[type="text"], input[type="password"], input[type="number"], input[type="color"], select {
-            width: 100%;
-            padding: 12px;
-            background-color: var(--bg);
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            color: var(--ink);
-            font-size: 16px;
-        }
-        input[type="color"] { padding: 4px; height: 48px; }
-        input:focus, select:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
-        }
-        .form-group small {
-            font-size: 0.8em;
-            color: var(--muted);
-        }
+    .status-capsule{
+      display:flex; align-items:center; padding:4px 12px; border-radius:99px;
+      font-size:14px; font-weight:500; transition:background-color .3s,color .3s;
+      white-space:nowrap;                                             /* 新：不換行 */
+      flex:0 0 auto;                                                  /* 新：固定寬度 */
+    }
+    .status-capsule.disconnected{ background-color:var(--bad); color:#fff; }
+    .status-capsule.reconnecting{ background-color:var(--err); color:#333; }
+    .status-capsule.connected{ background-color:var(--good); color:#fff; }
 
-        /* --- 按鈕 (Button) --- */
-        .btn {
-            padding: 12px 20px;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 16px;
-            transition: all 0.2s;
-            background-color: var(--neutral);
-            color: white;
-            user-select: none;
-        }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn:hover:not(:disabled) { filter: brightness(1.1); }
-        .btn:active:not(:disabled) { transform: translateY(1px); filter: brightness(0.9); }
-        
-        .btn.good { background-color: var(--good); }
-        .btn.bad { background-color: var(--bad); }
-        .btn.neutral { background-color: var(--neutral); }
-        .btn.ghost { background-color: transparent; border: 2px solid var(--accent); color: var(--accent); }
+    .app-bar-actions{
+      display:flex; align-items:center; gap:.5rem;                    /* 新：改成 flex + 間距 */
+      flex:0 0 auto;                                                  /* 新：不被擠縮 */
+    }
+    .app-bar-actions button{ margin-left:0; }                         /* 改：gap 取代 margin-left */
+    .btn{ white-space:nowrap; }                                       /* 新：按鈕文字不換行 */
 
-        /* --- 特定控制項 --- */
-        .control-item {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 12px;
-            background-color: var(--bg);
-            border-radius: 12px;
-            min-height: 80px;
-            position: relative;
-        }
-        .control-item .label {
-            font-weight: 500;
-            margin-bottom: 8px;
-            text-align: center;
-        }
+    /* --- Tabs --- */
+    .tabs{ display:flex; justify-content:center; padding:16px 0; }
+    .tab-link{
+      padding:8px 24px; margin:0 8px; border-radius:99px; cursor:pointer; font-weight:500;
+      border:1px solid transparent; background-color:var(--card); color:var(--muted);
+      transition:all .2s ease-in-out; user-select:none;
+    }
+    .tab-link.active{
+      background-color:var(--accent); color:#fff; border-color:var(--accent);
+      box-shadow:0 2px 6px rgba(0,0,0,.15);
+    }
+    .tab-content{ display:none; } .tab-content.active{ display:block; }
 
-        /* 按鈕型控制 */
-        .control-button {
-            width: 100%;
-            padding: 16px;
-            font-size: 1.1em;
-            font-weight: bold;
-            border-radius: 10px;
-            height: 100%;
-        }
+    /* --- 卡片 (Card) --- */
+    .card{
+      background-color:var(--card); border-radius:var(--radius); padding:20px;
+      margin-bottom:20px; box-shadow:var(--shadow); border:1px solid var(--line);
+    }
+    .card-title{ margin:-20px -20px 20px; padding:16px 20px; border-bottom:1px solid var(--line);
+      font-size:1.1em; font-weight:600; }
+    .card-subtitle{ font-size:.9em; color:var(--muted); margin-top:-10px; margin-bottom:15px; font-weight:400; }
 
-        /* 切換型控制 (Toggle) */
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 60px;
-            height: 34px;
-        }
-        .toggle-switch input { display: none; }
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: var(--neutral);
-            transition: .4s;
-            border-radius: 34px;
-        }
-        .toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 26px; width: 26px;
-            left: 4px; bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        input:checked + .toggle-slider { background-color: var(--accent); }
-        input:checked + .toggle-slider:before { transform: translateX(26px); }
+    /* --- 控制項網格 --- */
+    .controls-grid{ display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+    .control-group-grid{ display:grid; gap:16px; grid-template-columns:repeat(2,1fr); }
+    @media (min-width:768px){ .control-group-grid{ grid-template-columns:repeat(4,1fr); } }
 
-        /* 滑桿型控制 (Slider) */
-        .slider-control {
-            width: 100%;
-            text-align: center;
-        }
-        .slider-control input[type="range"] {
-            width: 100%;
-            -webkit-appearance: none;
-            appearance: none;
-            background: transparent;
-            cursor: pointer;
-        }
-        .slider-control input[type="range"]::-webkit-slider-runnable-track {
-            background: var(--line);
-            height: 8px;
-            border-radius: 4px;
-        }
-        .slider-control input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            margin-top: -6px; /* (thumb height - track height) / 2 */
-            background-color: var(--accent);
-            height: 20px;
-            width: 20px;
-            border-radius: 50%;
-        }
-        .slider-value {
-            font-weight: bold;
-            color: var(--accent);
-            margin-top: 8px;
-        }
+    /* --- 表單元件 --- */
+    .form-group{ margin-bottom:16px; }
+    .form-group label{ display:block; margin-bottom:6px; font-weight:500; color:var(--muted); }
+    input[type="text"],input[type="password"],input[type="number"],input[type="color"],select{
+      width:100%; padding:12px; background-color:var(--bg); border:1px solid var(--line);
+      border-radius:8px; color:var(--ink); font-size:16px;
+    }
+    input[type="color"]{ padding:4px; height:48px; }
+    input:focus,select:focus{
+      outline:none; border-color:var(--accent);
+      box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+    }
+    .form-group small{ font-size:.8em; color:var(--muted); }
 
-        /* 顯示型控制 (Display) */
-        .display-value {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: var(--accent);
-        }
-        .display-link {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            color: var(--muted);
-            text-decoration: none;
-        }
-        .display-link:hover { color: var(--accent); }
+    /* --- 按鈕 (Button) --- */
+    .btn{
+      padding:12px 20px; border-radius:8px; border:none; cursor:pointer;
+      font-weight:600; font-size:16px; transition:all .2s; background-color:var(--neutral); color:#fff; user-select:none;
+    }
+    .btn:disabled{ opacity:.5; cursor:not-allowed; }
+    .btn:hover:not(:disabled){ filter:brightness(1.1); }
+    .btn:active:not(:disabled){ transform:translateY(1px); filter:brightness(.9); }
+    .btn.good{ background-color:var(--good); }
+    .btn.bad{ background-color:var(--bad); }
+    .btn.neutral{ background-color:var(--neutral); }
+    .btn.ghost{ background:transparent; border:2px solid var(--accent); color:var(--accent); }
 
-        /* --- 訊息紀錄 (Logger) --- */
-        #logger {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 250px;
-            background-color: #0a0a0a;
-            border-top: 1px solid var(--line);
-            padding: 10px;
-            overflow-y: scroll;
-            font-family: "SF Mono", "Courier New", monospace;
-            font-size: 13px;
-            z-index: 1000;
-        }
-        .log-entry {
-            display: flex;
-            margin-bottom: 4px;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-        .log-time { color: var(--muted); margin-right: 10px; flex-shrink: 0; }
-        .log-type { font-weight: bold; margin-right: 10px; flex-shrink: 0; width: 40px; }
-        .log-type-INFO { color: var(--info); }
-        .log-type-TX   { color: var(--good); }
-        .log-type-RX   { color: #9c27b0; }
-        .log-type-ERR  { color: var(--err); }
-        .log-content { flex-grow: 1; }
+    /* --- 特定控制項 --- */
+    .control-item{
+      display:flex; flex-direction:column; justify-content:center; align-items:center;
+      padding:12px; background-color:var(--bg); border-radius:12px; min-height:80px; position:relative;
+    }
+    .control-item .label{ font-weight:500; margin-bottom:8px; text-align:center; }
 
-        /* --- 快速指令 --- */
-        .quick-command-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-        }
-        @media (min-width: 992px) {
-            .quick-command-grid {
-                grid-template-columns: 3fr 1fr 1fr 1fr auto;
-                align-items: flex-end;
-            }
-        }
-        #quick-command-form .form-group { margin-bottom: 0; }
+    .control-button{ width:100%; padding:16px; font-size:1.1em; font-weight:bold; border-radius:10px; height:100%; }
 
-        /* --- 設定頁面 --- */
-        .settings-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        
-        /* --- 自訂控制管理器 --- */
-        #control-manager-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .control-manager-item {
-            display: flex;
-            align-items: center;
-            padding: 10px;
-            background-color: var(--bg);
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            margin-bottom: 8px;
-            cursor: grab;
-        }
-        .control-manager-item:active { cursor: grabbing; }
-        .control-manager-item .label { flex-grow: 1; }
-        .control-manager-item .type { color: var(--muted); margin-right: 10px; }
-        .control-manager-item button { margin-left: 5px; padding: 5px 10px; }
-        .dragging { opacity: 0.5; background: var(--accent); }
+    /* Toggle */
+    .toggle-switch{ position:relative; display:inline-block; width:60px; height:34px; }
+    .toggle-switch input{ display:none; }
+    .toggle-slider{
+      position:absolute; cursor:pointer; inset:0; background-color:var(--neutral);
+      transition:.4s; border-radius:34px;
+    }
+    .toggle-slider:before{
+      position:absolute; content:""; height:26px; width:26px; left:4px; bottom:4px;
+      background-color:#fff; transition:.4s; border-radius:50%;
+    }
+    input:checked + .toggle-slider{ background-color:var(--accent); }
+    input:checked + .toggle-slider:before{ transform:translateX(26px); }
 
-        /* --- 模態視窗 (Modal) --- */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 2000;
-            left: 0; top: 0;
-            width: 100%; height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.7);
-        }
-        .modal-content {
-            background-color: var(--card);
-            margin: 5% auto;
-            padding: 20px;
-            border: 1px solid var(--line);
-            width: 90%;
-            max-width: 600px;
-            border-radius: var(--radius);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--line);
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-        }
-        .modal-header h2 { margin: 0; }
-        .close-button {
-            color: var(--muted);
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .close-button:hover { color: var(--ink); }
-        .modal-footer {
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 20px;
-        }
-        .modal-footer button { margin-left: 10px; }
+    /* Slider */
+    .slider-control{ width:100%; text-align:center; }
+    .slider-control input[type="range"]{ width:100%; -webkit-appearance:none; appearance:none; background:transparent; cursor:pointer; }
+    .slider-control input[type="range"]::-webkit-slider-runnable-track{ background:var(--line); height:8px; border-radius:4px; }
+    .slider-control input[type="range"]::-webkit-slider-thumb{
+      -webkit-appearance:none; appearance:none; margin-top:-6px; background-color:var(--accent);
+      height:20px; width:20px; border-radius:50%;
+    }
+    .slider-value{ font-weight:bold; color:var(--accent); margin-top:8px; }
 
-        /* --- Toast 通知 --- */
-        #toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 3000;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-        }
-        .toast {
-            background-color: var(--card);
-            color: var(--ink);
-            padding: 12px 20px;
-            border-radius: 8px;
-            box-shadow: var(--shadow);
-            margin-bottom: 10px;
-            border-left: 4px solid var(--info);
-            opacity: 0;
-            transform: translateX(100%);
-            animation: slideIn 0.5s forwards, fadeOut 0.5s 4.5s forwards;
-        }
-        .toast.success { border-left-color: var(--good); }
-        .toast.error { border-left-color: var(--bad); }
+    /* Display */
+    .display-value{ font-size:1.8em; font-weight:bold; color:var(--accent); }
+    .display-link{ position:absolute; top:8px; right:8px; color:var(--muted); text-decoration:none; }
+    .display-link:hover{ color:var(--accent); }
 
-        @keyframes slideIn {
-            to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes fadeOut {
-            to { opacity: 0; transform: translateX(100%); }
-        }
+    /* --- 訊息紀錄 (Logger) --- */
+    #logger{
+      position:fixed; bottom:0; left:0; right:0; height:250px; background-color:#0a0a0a;
+      border-top:1px solid var(--line); padding:10px; overflow-y:scroll;
+      font-family:"SF Mono","Courier New",monospace; font-size:13px; z-index:1000;
+    }
+    .log-entry{ display:flex; margin-bottom:4px; white-space:pre-wrap; word-break:break-all; }
+    .log-time{ color:var(--muted); margin-right:10px; flex-shrink:0; }
+    .log-type{ font-weight:bold; margin-right:10px; flex-shrink:0; width:40px; }
+    .log-type-INFO{ color:var(--info); } .log-type-TX{ color:var(--good); }
+    .log-type-RX{ color:#9c27b0; } .log-type-ERR{ color:var(--err); }
+    .log-content{ flex-grow:1; }
 
-        /* 輔助 class */
-        .hidden { display: none !important; }
+    /* --- 快速指令 --- */
+    .quick-command-grid{ display:grid; grid-template-columns:1fr; gap:10px; }
+    @media (min-width:992px){
+      .quick-command-grid{ grid-template-columns:3fr 1fr 1fr 1fr auto; align-items:flex-end; }
+    }
+    #quick-command-form .form-group{ margin-bottom:0; }
 
-        /* ===== [FIX] App Bar 單行鎖定 & 右側不被擠換行 =====
-           放在 <style> 的最後（</style> 之前），或外部 CSS 的結尾。
-           目的：讓品牌可收縮、狀態與按鈕保持單行不換行。
-        */
-        .app-bar{
-          display: flex;
-          align-items: center;
-          gap: .5rem;
-          flex-wrap: nowrap;                 /* 關鍵：不換行 */
-        }
+    /* --- 設定頁面 --- */
+    .settings-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:20px; }
 
-        /* 左側品牌：吃掉彈性空間，但允許截斷 */
-        .app-bar .brand{
-          display: flex;
-          align-items: center;
-          gap: .5rem;
-          min-width: 0;                      /* 允許在 flex 中收縮 */
-          flex: 1 1 auto;                    /* 讓品牌佔可用空間 */
-        }
-        .app-bar .brand span{
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;           /* 太長用 … 截斷 */
-          max-width: 48vw;                   /* 避免擠壓右側 */
-        }
+    /* --- 自訂控制管理器 --- */
+    #control-manager-list{ list-style:none; padding:0; margin:0; }
+    .control-manager-item{
+      display:flex; align-items:center; padding:10px; background-color:var(--bg);
+      border:1px solid var(--line); border-radius:8px; margin-bottom:8px; cursor:grab;
+    }
+    .control-manager-item:active{ cursor:grabbing; }
+    .control-manager-item .label{ flex-grow:1; }
+    .control-manager-item .type{ color:var(--muted); margin-right:10px; }
+    .control-manager-item button{ margin-left:5px; padding:5px 10px; }
+    .dragging{ opacity:.5; background:var(--accent); }
 
-        /* 中間狀態膠囊：固定尺寸不換行 */
-        .app-bar #status-display{
-          flex: 0 0 auto;
-          white-space: nowrap;
-          padding: .25rem .6rem;
-          border-radius: 999px;
-        }
+    /* --- Modal --- */
+    .modal{ display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%;
+      overflow:auto; background-color:rgba(0,0,0,.7); }
+    .modal-content{
+      background-color:var(--card); margin:5% auto; padding:20px; border:1px solid var(--line);
+      width:90%; max-width:600px; border-radius:var(--radius); box-shadow:0 5px 15px rgba(0,0,0,.5);
+    }
+    .modal-header{ display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line);
+      padding-bottom:10px; margin-bottom:20px; }
+    .modal-header h2{ margin:0; }
+    .close-button{ color:var(--muted); font-size:28px; font-weight:bold; cursor:pointer; }
+    .close-button:hover{ color:var(--ink); }
+    .modal-footer{ display:flex; justify-content:flex-end; margin-top:20px; }
+    .modal-footer button{ margin-left:10px; }
 
-        /* 右側按鈕群：靠右並保持單行 */
-        .app-bar .app-bar-actions{
-          display: flex;
-          align-items: center;
-          gap: .5rem;
-          flex: 0 0 auto;                    /* 不被擠縮 */
-        }
-        .app-bar .btn{ white-space: nowrap; } /* 按鈕文字不換行 */
+    /* --- Toast --- */
+    #toast-container{ position:fixed; top:20px; right:20px; z-index:3000; display:flex; flex-direction:column; align-items:flex-end; }
+    .toast{
+      background-color:var(--card); color:var(--ink); padding:12px 20px; border-radius:8px;
+      box-shadow:var(--shadow); margin-bottom:10px; border-left:4px solid var(--info);
+      opacity:0; transform:translateX(100%); animation:slideIn .5s forwards, fadeOut .5s 4.5s forwards;
+    }
+    .toast.success{ border-left-color:var(--good); } .toast.error{ border-left-color:var(--bad); }
+    @keyframes slideIn{ to{ opacity:1; transform:translateX(0); } }
+    @keyframes fadeOut{ to{ opacity:0; transform:translateX(100%); } }
 
-        /* 小螢幕：略微縮小避免擠滿 */
-        @media (max-width:420px){
-          .app-bar #status-display{
-            font-size: .9rem;
-            padding: .2rem .5rem;
-          }
-          .app-bar .btn{
-            font-size: .9rem;
-            padding: .35rem .6rem;
-          }
-        }
+    /* 輔助 */
+    .hidden{ display:none !important; }
 
-    </style>
+    /* --- 小螢幕微調（App Bar 專用） --- */
+    @media (max-width:420px){
+      .status-capsule{ font-size:.9rem; padding:.2rem .5rem; }
+      .app-bar .btn{ font-size:.9rem; padding:.35rem .6rem; }
+    }
+  </style>
 </head>
 <body>
 
@@ -532,7 +247,7 @@
     <header class="app-bar">
         <div class="brand">
             <div class="logo"></div>
-            <span>IoT ProDeck v4.1</span>
+            <span id="brand-text"></span>
         </div>
         <div id="status-display" class="status-capsule disconnected" role="status" aria-live="polite">Disconnected</div>
         <div class="app-bar-actions">
@@ -868,6 +583,26 @@
         const $ = document.querySelector.bind(document);
         const $$ = document.querySelectorAll.bind(document);
 
+        // ---- App Meta（單一來源） ----
+        function getMeta(name){
+          const el = document.querySelector(`meta[name="${name}"]`);
+          return el ? el.content : '';
+        }
+        const APP = {
+          nameEn: getMeta('app-name-en') || 'IoT ProDeck',
+          nameZh: getMeta('app-name-zh') || '',           // 空字串則只用英文
+          version: getMeta('app-version') || '0.0.0'
+        };
+        const APP_NAME = (navigator.language || '').startsWith('zh')
+          ? (APP.nameZh || APP.nameEn) : APP.nameEn;
+
+        // 套用到 <title> 與 App Bar
+        document.addEventListener('DOMContentLoaded', () => {
+          const brand = document.getElementById('brand-text');
+          if (brand) brand.textContent = `${APP_NAME} v${APP.version}`;
+          document.title = `${APP_NAME} | PWA 可訂閱狀態 MQTT 控制中心 v${APP.version}`;
+        });
+        
         const dom = {
             // App Bar
             connectBtn: $('#connect-btn'),
@@ -1053,24 +788,25 @@
         const dbSet = (key, value) => dbAction('put', key, value);
         const dbDelete = (key) => dbAction('delete', key);
 
-        // --- UI 渲染引擎 ---
+        // === [PATCH] 連線狀態 UI：單一主動作（連線 或 中斷） ===
         function updateConnectionStatus() {
-            if (appState.isConnected) {
-                dom.statusDisplay.className = 'status-capsule connected';
-                dom.statusDisplay.textContent = 'Connected';
-                dom.connectBtn.disabled = true;
-                dom.disconnectBtn.disabled = false;
-            } else if (appState.isReconnecting) {
-                dom.statusDisplay.className = 'status-capsule reconnecting';
-                dom.statusDisplay.textContent = 'Reconnecting...';
-                dom.connectBtn.disabled = true;
-                dom.disconnectBtn.disabled = false;
-            } else {
-                dom.statusDisplay.className = 'status-capsule disconnected';
-                dom.statusDisplay.textContent = 'Disconnected';
-                dom.connectBtn.disabled = false;
-                dom.disconnectBtn.disabled = true;
-            }
+          const st   = dom.statusDisplay;
+          const btnC = dom.connectBtn;
+          const btnD = dom.disconnectBtn;
+
+          const isConn = appState.isConnected === true;
+          const isRe   = appState.isReconnecting === true;
+
+          // 狀態膠囊樣式 + 文案
+          st.className = 'status-capsule ' + (isConn ? 'connected' : isRe ? 'reconnecting' : 'disconnected');
+          st.textContent = isConn ? 'Connected' : isRe ? 'Reconnecting...' : 'Disconnected';
+
+          // 只顯示一顆主按鈕
+          btnC.classList.toggle('hidden', isConn || isRe);   // 已連線/重連中 → 隱藏「連線」
+          btnC.disabled = isConn || isRe;
+
+          btnD.classList.toggle('hidden', !isConn && !isRe); // 未連線 → 隱藏「中斷」
+          btnD.disabled = !isConn && !isRe;
         }
         
         function renderControls() {
@@ -1413,10 +1149,15 @@
         }
         
         function disconnect() {
-            if (appState.mqttClient) {
-                appState.mqttClient.end();
-                log('INFO', '使用者手動中斷連線。');
-            }
+          if (appState.mqttClient) {
+            appState.mqttClient.end();
+            log('INFO', '使用者手動中斷連線。');
+
+            // === [ADD] 立刻反映 UI，不用等 onclose ===
+            appState.isConnected = false;
+            appState.isReconnecting = false;
+            updateConnectionStatus();
+          }
         }
 
         function publish(topic, payload, options) {
@@ -1875,7 +1616,7 @@
         
         // --- 應用程式初始化 ---
         async function init() {
-            log('INFO', 'IoT ProDeck v4.0 啟動中...');
+            log('INFO', `${APP_NAME} v${APP.version} 啟動中...`);
             if (typeof mqtt === 'undefined') {
                 return alert('錯誤: mqtt.min.js 未載入，應用程式無法運作。');
             }
@@ -1892,11 +1633,31 @@
         // [PWA] 註冊 Service Worker
         if ('serviceWorker' in navigator) {
           window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js').then(registration => {
-              console.log('ServiceWorker registration successful with scope: ', registration.scope);
-              log('INFO', 'PWA Service Worker 已註冊。');
-            }, err => {
-              console.log('ServiceWorker registration failed: ', err);
+            // 從前面集中管理的 APP.version 帶入（4.1.0 之類）
+            const swUrl = `./sw.js?v=${encodeURIComponent(APP.version)}`;
+
+            navigator.serviceWorker.register(swUrl).then(reg => {
+              console.log('ServiceWorker registration successful with scope:', reg.scope);
+              log('INFO', `PWA Service Worker 已註冊（scope=${reg.scope}，版本=${APP.version}）`);
+
+              // 偵測更新：有新 SW 安裝時提示
+              reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                log('INFO', '偵測到新的 Service Worker，開始更新...');
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed') {
+                      if (navigator.serviceWorker.controller) {
+                        log('INFO', 'Service Worker 已更新，將於下次重新整理後生效。');
+                      } else {
+                        log('INFO', 'Service Worker 首次安裝完成。');
+                      }
+                    }
+                  });
+                }
+              });
+            }).catch(err => {
+              console.log('ServiceWorker registration failed:', err);
               log('ERR', `PWA Service Worker 註冊失敗: ${err}`);
             });
           });
