@@ -13,7 +13,7 @@
   <!-- App meta (單一來源) -->
   <meta name="app-name-en" content="IoT ProDeck">
   <meta name="app-name-zh" content="物聯控制台">
-  <meta name="app-version" content="4.1.0">
+  <meta name="app-version" content="4.2.0">
 
   <title>Loading…</title>
 
@@ -37,20 +37,38 @@
     /* --- 容器與佈局 --- */
     .container{ padding:16px; max-width:1200px; margin:0 auto; }
 
-    /* --- App Bar --- */
+    /* --- App Bar：改用 3 欄 Grid，讓膠囊置中 --- */
     .app-bar{
-      position:fixed; top:0; left:0; right:0; height:60px;
-      background-color:var(--card); border-bottom:1px solid var(--line);
-      display:flex; align-items:center; justify-content:flex-start;   /* 改：改成靠左排列 */
-      gap:.5rem;                                                      /* 新：項目間距 */
-      flex-wrap:nowrap;                                               /* 新：不換行 */
-      padding:0 16px; z-index:1000; box-shadow:0 2px 8px rgba(0,0,0,.2);
+      position: fixed; top: 0; left: 0; right: 0; height: 60px;
+      background-color: var(--card); border-bottom: 1px solid var(--line);
+      display: grid;                          /* ← 改：flex → grid */
+      grid-template-columns: 1fr auto 1fr;    /* ← 左 / 中(膠囊) / 右 */
+      align-items: center;
+      gap: .5rem;                             /* 間距保留 */
+      padding: 0 16px; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,.2);
     }
+
+    /* 左側品牌：可收縮、靠左 */
     .brand{
-      display:flex; align-items:center; gap:.5rem;                    /* 新：加 gap */
-      font-weight:600; font-size:18px;
-      min-width:0;                                                    /* 新：允許收縮 */
-      flex:1 1 auto;                                                  /* 新：吃掉彈性空間 */
+      display: flex; align-items: center; gap: .5rem;
+      font-weight: 600; font-size: 18px;
+      min-width: 0;                           /* 允許縮 */
+      justify-self: start;                    /* ← 靠左 */
+      /* 移除 flex:1 1 auto;（在 grid 中不需要） */
+    }
+
+    /* 中間膠囊：置中＆不換行 */
+    #status-display{
+      justify-self: center;                   /* ← 置中 */
+      white-space: nowrap;
+    }
+
+    /* 右側按鈕群：靠右，維持水平排列 */
+    .app-bar-actions{
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
     }
     .brand .logo{
       width:24px; height:24px; background-color:var(--accent);
@@ -253,6 +271,16 @@
         <div class="app-bar-actions">
             <button id="connect-btn" class="btn good">連線</button>
             <button id="disconnect-btn" class="btn bad" disabled>中斷</button>
+            <!-- [ADD] HELP：開新分頁，最小修改 -->
+            <a
+              id="help-link"
+              class="btn ghost"
+              href="https://github.com/cypswu/espmqtt/tree/main/EWC_MQTT#iot-prodeck-v40--%E5%B0%88%E6%A1%88%E8%AA%AA%E6%98%8Euser--dev-handbook"
+              target="_blank"
+              rel="noopener"
+              title="開啟使用說明"
+              aria-label="開啟使用說明"
+            >說明</a>
         </div>
     </header>
 
