@@ -1,14 +1,16 @@
 /* IoT ProDeck - PWA Caching Logic */
-const CACHE_NAME = 'iot-prodeck-cache-v4'; // 更新快取版本名稱
+const SW_VERSION = '2.3.1';                 // ★ 版本字串，每次修改請遞增
+const CACHE_PREFIX = 'pwa-cache-';
+const CACHE_NAME = `${CACHE_PREFIX}${SW_VERSION}`;
 
 // 定義 App Shell 的核心資源
 const APP_SHELL = [
   './',
   './index.html',
   './mqtt.min.js',
-  './icons/icon-192x192.png', // 確保路徑與檔名正確
+  './manifest.webmanifest'
+  './icons/icon-192x192.png',
   './icons/icon-512x512.png',
-  './manifest.webmanifest' // 使用 .webmanifest 副檔名
 ];
 
 // install 事件：在 Service Worker 安裝時，快取 App Shell 資源

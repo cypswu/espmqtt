@@ -469,6 +469,61 @@
         /* 輔助 class */
         .hidden { display: none !important; }
 
+        /* ===== [FIX] App Bar 單行鎖定 & 右側不被擠換行 =====
+           放在 <style> 的最後（</style> 之前），或外部 CSS 的結尾。
+           目的：讓品牌可收縮、狀態與按鈕保持單行不換行。
+        */
+        .app-bar{
+          display: flex;
+          align-items: center;
+          gap: .5rem;
+          flex-wrap: nowrap;                 /* 關鍵：不換行 */
+        }
+
+        /* 左側品牌：吃掉彈性空間，但允許截斷 */
+        .app-bar .brand{
+          display: flex;
+          align-items: center;
+          gap: .5rem;
+          min-width: 0;                      /* 允許在 flex 中收縮 */
+          flex: 1 1 auto;                    /* 讓品牌佔可用空間 */
+        }
+        .app-bar .brand span{
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;           /* 太長用 … 截斷 */
+          max-width: 48vw;                   /* 避免擠壓右側 */
+        }
+
+        /* 中間狀態膠囊：固定尺寸不換行 */
+        .app-bar #status-display{
+          flex: 0 0 auto;
+          white-space: nowrap;
+          padding: .25rem .6rem;
+          border-radius: 999px;
+        }
+
+        /* 右側按鈕群：靠右並保持單行 */
+        .app-bar .app-bar-actions{
+          display: flex;
+          align-items: center;
+          gap: .5rem;
+          flex: 0 0 auto;                    /* 不被擠縮 */
+        }
+        .app-bar .btn{ white-space: nowrap; } /* 按鈕文字不換行 */
+
+        /* 小螢幕：略微縮小避免擠滿 */
+        @media (max-width:420px){
+          .app-bar #status-display{
+            font-size: .9rem;
+            padding: .2rem .5rem;
+          }
+          .app-bar .btn{
+            font-size: .9rem;
+            padding: .35rem .6rem;
+          }
+        }
+
     </style>
 </head>
 <body>
@@ -477,9 +532,9 @@
     <header class="app-bar">
         <div class="brand">
             <div class="logo"></div>
-            <span>IoT ProDeck v4.0</span>
+            <span>IoT ProDeck v4.1</span>
         </div>
-        <div id="status-display" class="status-capsule disconnected">Disconnected</div>
+        <div id="status-display" class="status-capsule disconnected" role="status" aria-live="polite">Disconnected</div>
         <div class="app-bar-actions">
             <button id="connect-btn" class="btn good">連線</button>
             <button id="disconnect-btn" class="btn bad" disabled>中斷</button>
