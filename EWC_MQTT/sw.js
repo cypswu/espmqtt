@@ -34,7 +34,6 @@ const APP_SHELL = [
   './index.html',
   './manifest.json',
   './mqtt.min.js',
-  './notifications.html',         // 你專案也有這頁，一併快取
   './icons/icon-192x192.png',
   './icons/icon-512x512.png',
 ];
