@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-TW" data-bs-theme="auto">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <link rel="icon" href="favicon.ico" />
+  <title>EWC Device Flasher — 線上燒錄中心</title>
+
+  <!-- 版本控制（只需改這裡） -->
+  <script>
+    const APP_VERSION = "2.0.3+ewc-flash";
+    const VQ = `?v=${encodeURIComponent(APP_VERSION)}`;
+    try {
+      const KEY="ewc.flash.version";const prev=localStorage.getItem(KEY);
+      if(prev!==APP_VERSION){localStorage.setItem(KEY,APP_VERSION);window.__EWC_JUST_UPDATED__=!!prev;}
+    } catch(e){}
+  </script>
+
+  <!-- Bootstrap 5 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+
+  <!-- esp-web-tools -->
+  <script type="module" src="https://unpkg.com/esp-web-tools@10.0.1/dist/web/install-button.js?module"></script>
+
+  <style>
+    :root{
+      --ewc-primary:#4f46e5;
+      --ewc-gradient:linear-gradient(135deg,#4f46e5 0%,#22c55e 100%);
+    }
+    body{
+      background:
+        radial-gradient(1200px 600px at -10% -10%, rgba(79,70,229,.10), transparent 70%),
+        radial-gradient(1200px 600px at 110% 110%, rgba(34,197,94,.10), transparent 70%);
+      min-height:100dvh;
+    }
+    .navbar-brand span{font-weight:700;letter-spacing:.2px;}
+    .badge-version{
+      background:var(--ewc-gradient);color:#fff;box-shadow:0 .25rem 1rem rgba(0,0,0,.12)
+    }
+
+    /* Hero：使用 BS 的自適應底色，確保深/淺色都可讀 */
+    .hero{
+      border-radius:1.25rem;
+      background:var(--bs-tertiary-bg);
+      padding:2rem;
+      border:1px solid var(--bs-border-color);
+    }
+    .hero h1{ color: var(--bs-emphasis-color); }
+    .hero .lead{ color: var(--bs-body-color); opacity:.96; }
+
+    .card{border-radius:1rem;box-shadow:0 .5rem 1.5rem rgba(0,0,0,.06);border:1px solid var(--bs-border-color)}
+    .muted{opacity:.9}
+    .install-ready{animation:pop .3s ease-out}
+    @keyframes pop{from{transform:scale(.98);opacity:.6}to{transform:scale(1);opacity:1}}
+    .list-steps li::marker{color:var(--ewc-primary)}
+    .code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;background:rgba(0,0,0,.06);padding:.1rem .4rem;border-radius:.35rem}
+    [data-bs-theme="dark"] .code{background:rgba(255,255,255,.06)}
+    .footer{font-size:.9rem;opacity:.85}
+
+    /* 讓 esp-web-tools 的按鈕吃到 Bootstrap 樣式且全寬 */
+    .ewc-install-btn{display:block;width:100%}
+    .ewc-install-btn::part(button){
+      width:100%;display:inline-flex;justify-content:center;align-items:center;
+      padding:.6rem 1rem;border-radius:.5rem;border:1px solid var(--bs-border-color)
+    }
+    .ewc-install-btn.btn-primary::part(button){background-color:var(--bs-primary);color:#fff;border-color:var(--bs-primary)}
+    .ewc-install-btn.btn-primary::part(button):hover{filter:brightness(1.05)}
+    .ewc-install-btn.btn-secondary::part(button){background-color:var(--bs-secondary-bg);color:var(--bs-body-color)}
+
+    /* Live Console */
+    .console-box{
+      background:var(--bs-body-bg);
+      border:1px solid var(--bs-border-color);
+      border-radius:.75rem;
+      padding:.75rem;
+      height:220px;
+      overflow:auto;
+      font: 12px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+      white-space: pre-wrap;
+    }
+    .console-box .ts{opacity:.6}
+    .console-actions .btn{--bs-btn-padding-y: .25rem; --bs-btn-padding-x: .5rem; --bs-btn-font-size: .8rem;}
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom sticky-top">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="#">
+        <svg width="24" height="24" viewBox="0 0 24 24" class="text-primary" fill="currentColor" role="img" aria-label="EWC">
+          <path d="M12 2l2.5 5.5L20 9l-5 3.5L16 19l-4-2.5L8 19l1-6.5L4 9l5.5-1.5L12 2z"/>
+        </svg>
+        <span>EWC Device Flasher</span>
+        <span class="badge badge-version ms-2">v<span id="appVersionLabel"></span></span>
+      </a>
+      <div class="ms-auto">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#changelogModal">版本說明</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <header class="container my-4">
+    <div class="hero">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-7">
+          <h1 class="display-6 mb-2">EWC 線上燒錄中心</h1>
+          <p class="lead mb-3">
+            使用瀏覽器（Chrome/Edge）直接對 ESP 裝置燒錄韌體。支援「預設清單燒錄」與
+            <strong>通用燒錄：ESP8266 / ESP8285（ESP-01M）</strong>；全程在本機完成，不上傳伺服器。
+          </p>
+          <div id="envAlert" class="alert alert-warning d-none" role="alert"></div>
+          <div id="updateToast" class="alert alert-success d-none" role="alert">
+            已更新至 <span class="code">v<span id="updatedVersion"></span></span>。查看
+            <a class="link-success" data-bs-toggle="modal" data-bs-target="#changelogModal" href="#">版本說明</a>。
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" id="testPortBtn">測試序列埠可用性</button>
+            <button class="btn btn-outline-primary" id="openFaqBtn">常見問題</button>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <ul class="list-unstyled small mb-0">
+            <li>✅ 支援：ESP32-CAM、ESP-01M（ESP8285/8266）</li>
+            <li>🔒 請以 <span class="code">HTTPS</span> 或 <span class="code">localhost</span> 開啟</li>
+            <li>🧩 瀏覽器：Chrome / Edge（需 Web Serial）</li>
+            <li>⚡ 自選檔以本機 Blob 方式燒錄，<u>不經伺服器</u></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="container my-4">
+    <div class="row g-4">
+      <!-- ① 預設韌體燒錄（保留原兩種 manifest） -->
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">① 預設韌體燒錄</h5>
+            <p class="card-text muted">
+              從清單選擇裝置並開始燒錄（請在同資料夾準備好對應的 <span class="code">manifest_*.json</span>）。
+            </p>
+
+            <form id="presetForm" class="mb-3">
+              <div class="mb-2 fw-semibold">選擇裝置類型</div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="type" id="ewccam" value="ewccam">
+                <label class="form-check-label" for="ewccam">EWC CAM 串流監控通知（ESP32-CAM）</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="type" id="ewc01m" value="ewc01m">
+                <label class="form-check-label" for="ewc01m">EWC 調光燈控通知（ESP-01M / 專用韌體）</label>
+              </div>
+            </form>
+
+            <div class="d-grid">
+              <esp-web-install-button id="presetBtn" class="ewc-install-btn btn btn-primary d-none" type="button">
+                開始燒錄（預設）
+              </esp-web-install-button>
+            </div>
+
+            <hr class="my-4">
+            <h6 class="fw-bold">步驟提示</h6>
+            <ol class="list-steps">
+              <li>把裝置接上 USB-TTL（3.3V）或板載 USB。</li>
+              <li>下載模式：ESP32-CAM 依板子按鍵；ESP-01M 請將 <span class="code">GPIO0</span> 拉低、<span class="code">EN/CH_PD</span> 拉高後上電。</li>
+              <li>點「開始燒錄」→ 選擇序列埠 → 依畫面指示進行。</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② 通用燒錄：ESP8266/ESP8285（ESP-01M）｜不動原 manifest -->
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">② 通用燒錄（ESP8266 / ESP8285｜ESP-01M）</h5>
+            <p class="card-text muted">
+              於本機選擇 <span class="code">.bin</span> 檔，系統會動態產生臨時 manifest 後進行燒錄。
+              適用以 Arduino-ESP8266/ESP8285 編譯之單一映像（offset 0x0）。<br>
+              <strong>不會修改或依賴你原本的 manifest。</strong>
+            </p>
+
+            <div class="row g-3 align-items-end">
+              <div class="col-12">
+                <label for="espGenericBin" class="form-label">選擇韌體檔（.bin）</label>
+                <input type="file" id="espGenericBin" class="form-control" accept=".bin" />
+                <div class="form-text">
+                  * 若有多分區檔，請先用 <span class="code">esptool.py merge_bin</span> 合併。
+                </div>
+              </div>
+              <div class="col-12">
+                <div id="fileInfoGeneric" class="small text-body-secondary"></div>
+              </div>
+              <div class="col-12 d-grid">
+                <esp-web-install-button id="espGenericBtn" class="ewc-install-btn btn btn-secondary d-none">
+                  開始燒錄（通用）
+                </esp-web-install-button>
+              </div>
+            </div>
+
+            <hr class="my-4">
+            <h6 class="fw-bold">快速檢查</h6>
+            <ul class="mb-0">
+              <li>驅動：CH340 / CP210x 已安裝。</li>
+              <li>失敗時先把波特率降至 115200（自編 manifest 可設定）。</li>
+              <li>確認 TX/RX 交叉接、電源 3.3V 穩定（建議 ≥500mA）。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 燒錄事件 Console -->
+      <div class="col-12">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between">
+              <h5 class="card-title mb-0">燒錄事件 Console</h5>
+              <div class="console-actions">
+                <button class="btn btn-outline-secondary btn-sm" id="copyConsoleBtn">複製</button>
+                <button class="btn btn-outline-danger btn-sm" id="clearConsoleBtn">清除</button>
+              </div>
+            </div>
+            <div id="liveConsole" class="console-box mt-2" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ -->
+      <div class="col-12">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">FAQ / 故障排除</h5>
+            <div class="accordion" id="faq">
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="q1">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#a1" aria-expanded="false">按鈕灰色或沒反應？</button>
+                </h2>
+                <div id="a1" class="accordion-collapse collapse" data-bs-parent="#faq" tabindex="-1">
+                  <div class="accordion-body">
+                    請使用 Chrome/Edge 並在 <span class="code">HTTPS</span> 或 <span class="code">localhost</span> 開啟；
+                    且已選擇裝置或上傳 .bin 檔。
+                  </div>
+                </div>
+              </div>
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="q2">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#a2">如何進入下載模式？</button>
+                </h2>
+                <div id="a2" class="accordion-collapse collapse" data-bs-parent="#faq" tabindex="-1">
+                  <div class="accordion-body">
+                    ESP-01M（ESP8285/8266）：上電時 <span class="code">GPIO0</span> 拉低、<span class="code">EN/CH_PD</span> 拉高；
+                    ESP32-CAM 依板載按鍵或短接方式進入。
+                  </div>
+                </div>
+              </div>
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="q3">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#a3">上傳自選檔安全嗎？</button>
+                </h2>
+                <div id="a3" class="accordion-collapse collapse" data-bs-parent="#faq" tabindex="-1">
+                  <div class="accordion-body">
+                    安全。檔案以 <em>本機 Blob URL</em> 方式使用，不會上傳到伺服器；你亦可比對 SHA-256。
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="text-body-secondary small mt-2">＊若按鈕仍無反應，請檢查瀏覽器是否允許「網站可存取序列埠」。</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="container my-5 footer">
+    <div class="d-flex flex-wrap justify-content-between align-items-center">
+      <div>© <span id="year"></span> EWC IoT ProDeck · All rights reserved.</div>
+      <div>版本：<span class="code">v<span id="appVersionFoot"></span></span></div>
+    </div>
+  </footer>
+
+  <!-- Changelog Modal -->
+  <div class="modal fade" id="changelogModal" tabindex="-1" aria-labelledby="changelogLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="changelogLabel">版本說明（Release Notes）</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+        </div>
+        <div class="modal-body">
+          <pre id="changelog" class="mb-0 small"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const $ = (sel)=>document.querySelector(sel);
+
+    // ===== Live Console =====
+    const consoleBox = $("#liveConsole");
+    function log(msg, level="info"){
+      const ts = new Date().toLocaleTimeString();
+      const line = `[${level.toUpperCase()}] <span class="ts">${ts}</span> ${msg}`;
+      consoleBox.insertAdjacentHTML("beforeend", line + "<br>");
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+    $("#clearConsoleBtn").addEventListener("click", ()=>{ consoleBox.textContent=""; });
+    $("#copyConsoleBtn").addEventListener("click", async ()=>{
+      try{ await navigator.clipboard.writeText(consoleBox.innerText); }catch(e){}
+    });
+
+    // 版本顯示
+    $("#appVersionLabel").textContent = APP_VERSION;
+    $("#appVersionFoot").textContent  = APP_VERSION;
+    $("#year").textContent = new Date().getFullYear();
+    if (window.__EWC_JUST_UPDATED__) {
+      $("#updatedVersion").textContent = APP_VERSION;
+      $("#updateToast").classList.remove("d-none");
+      log(`已更新至 v${APP_VERSION}`,"ok");
+    }
+
+    // Release Notes
+    const RELEASE_NOTES = [
+      { v:"2.0.3", date:"2025-09-26", notes:[
+        "新增：燒錄事件 Console（清除/複製、即時紀錄流程）",
+        "修正：FAQ 按鈕必定展開第 1 題並捲動",
+        "優化：更多步驟節點寫入 Console"
+      ]},
+      { v:"2.0.2", date:"2025-09-26", notes:[
+        "修正：深色模式 Hero 區域對比",
+        "新增：通用燒錄（ESP8266/ESP8285｜ESP-01M），不動原 manifest"
+      ]},
+      { v:"2.0.1", date:"2025-09-26", notes:[
+        "按鈕樣式與位置、d-none 切換優化"
+      ]}
+    ];
+    $("#changelog").textContent = RELEASE_NOTES
+      .map(x => `v${x.v} — ${x.date}\n - ${x.notes.join("\n - ")}`).join("\n\n");
+
+    // 環境檢查
+    (function(){
+      const alertBox = $("#envAlert"); const msgs=[];
+      if(!(location.protocol==="https:"||location.hostname==="localhost"))
+        msgs.push("請以 HTTPS 或 localhost 開啟本頁，否則瀏覽器可能禁止存取序列埠。");
+      const isChrome=/Chrome/i.test(navigator.userAgent)&&!/Edg/i.test(navigator.userAgent);
+      const isEdge=/Edg/i.test(navigator.userAgent);
+      if(!isChrome && !isEdge) msgs.push("建議使用 Chrome 或 Edge 以支援 Web Serial。");
+      if(!("serial" in navigator)) msgs.push("此瀏覽器未提供 Web Serial API。");
+      if(msgs.length){alertBox.textContent=msgs.join(" ");alertBox.classList.remove("d-none");}
+      log("環境檢查完成："+(msgs.length?msgs.join(" / "):"OK"), msgs.length?"warn":"ok");
+    })();
+
+    // ① 預設清單燒錄（保留原 manifest）
+    (function(){
+      const form=$("#presetForm"); const btn=$("#presetBtn");
+      form.addEventListener("change",()=>{
+        const sel=form.querySelector('input[name="type"]:checked')?.value;
+        if(!sel) return;
+        btn.manifest = `./manifest_${sel}.json${VQ}`;
+        btn.classList.remove("d-none");
+        btn.classList.add("btn-primary","install-ready");
+        log(`已選擇預設型號：${sel}，載入 manifest_`+sel+`.json`);
+      });
+      btn?.addEventListener("click",()=>log("預設燒錄：按下開始燒錄","ok"));
+    })();
+
+    // ② 通用燒錄（ESP8266/ESP8285｜ESP-01M）
+    (function(){
+      const fileInput=$("#espGenericBin"); const info=$("#fileInfoGeneric");
+      const installBtn=$("#espGenericBtn");
+      let lastManifestURL=null,lastBinURL=null;
+
+      async function sha256(file){
+        const buf=await file.arrayBuffer();
+        const hash=await crypto.subtle.digest("SHA-256",buf);
+        return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,"0")).join("");
+      }
+
+      fileInput.addEventListener("change",async()=>{
+        const file=fileInput.files?.[0]; if(!file) return;
+        log(`通用燒錄：選擇檔案 ${file.name}（${(file.size/1024).toFixed(1)} KB）`);
+
+        // 檔案資訊 + SHA256
+        info.textContent="計算校驗中⋯";
+        const digest=await sha256(file);
+        info.innerHTML=`檔名：<span class="code">${file.name}</span>，
+                        大小：${(file.size/1024).toFixed(1)} KB，
+                        SHA-256：<span class="code">${digest}</span>`;
+        log(`SHA-256：${digest}`);
+
+        // Blob URL
+        if(lastBinURL) URL.revokeObjectURL(lastBinURL);
+        lastBinURL=URL.createObjectURL(file);
+
+        // 動態 manifest（ESP8266/ESP8285 單檔 offset 0）
+        const manifest={
+          name:"EWC-Generic-ESP8266-8285",
+          version:new Date().toISOString().slice(0,19).replace("T"," "),
+          new_install_prompt_erase:true,
+          builds:[{chipFamily:"ESP8266",parts:[{path:lastBinURL,offset:0}]}]
+        };
+
+        const blob=new Blob([JSON.stringify(manifest)],{type:"application/json"});
+        if(lastManifestURL) URL.revokeObjectURL(lastManifestURL);
+        lastManifestURL=URL.createObjectURL(blob);
+
+        installBtn.manifest=lastManifestURL;
+        installBtn.classList.remove("d-none");
+        installBtn.classList.add("btn-primary","install-ready");
+        log("已建立臨時 manifest（ESP8266/ESP8285, offset=0）","ok");
+      });
+
+      installBtn?.addEventListener("click",()=>log("通用燒錄：按下開始燒錄","ok"));
+    })();
+
+    // 工具：測試序列埠
+    $("#testPortBtn").addEventListener("click", async ()=>{
+      if(!("serial" in navigator)){alert("瀏覽器不支援 Web Serial。請改用 Chrome / Edge。");log("瀏覽器無 Web Serial","err");return;}
+      try{await navigator.serial.requestPort({});alert("序列埠可使用 ✅");log("序列埠可用","ok");}
+      catch(e){log("序列埠測試取消或失敗："+(e?.message||e),"warn");}
+    });
+
+    // 工具：打開 FAQ（展開第一項並捲動；若 bootstrap 不可用也會 fallback）
+    $("#openFaqBtn").addEventListener("click",()=>{
+      const firstCollapse = document.getElementById("a1");
+      try{
+        if(firstCollapse){
+          if(window.bootstrap?.Collapse){
+            const c = bootstrap.Collapse.getOrCreateInstance(firstCollapse,{toggle:false});
+            c.show();
+          }else{
+            firstCollapse.classList.add("show");
+          }
+          firstCollapse.focus({preventScroll:true});
+          document.getElementById("faq").scrollIntoView({behavior:"smooth",block:"start"});
+          log("已開啟 FAQ（第 1 題）","ok");
+        }
+      }catch(e){ log("開啟 FAQ 例外："+(e?.message||e),"err"); }
+    });
+  </script>
+</body>
+</html>
