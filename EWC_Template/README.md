@@ -94,6 +94,7 @@
 | `[ch].fade <from> <to> <ms>` | 漸變燈 | `g.fade 0 100 1000` (1秒漸亮) |
 | `[ch].blink <val> <on> <off>` | 閃爍 | `b.blink 100 200 200` (快閃) |
 | `push` | 發送 WebPush 測試 | `push` 或 `push 標題|內容` |
+| `pina<n>` | 讀取 Analog GPIO <n> | `pina0` (A0), `pina34` |
 | `pin<n>.on` | 設定 GPIO <n> 為 HIGH | `pin12.on` |
 | `pin<n>.off` | 設定 GPIO <n> 為 LOW | `pin12.off` |
 | `portal` | 強制開啟設定頁面 | `portal` (裝置將斷線並開啟 AP) |
@@ -154,6 +155,7 @@ sys.ota http://192.168.1.10/firmware.bin http://192.168.1.10/MinimalLoader.bin
 *   `sys.reboot` : 重啟裝置
 *   `sys.ver` : 顯示版本號
 *   `pin<n>.on` / `pin<n>.off` : 控制 GPIO
+*   `pina<n>` : 讀取 Analog GPIO (例如 `pina0`)
 *   `push <title>|<body>` : 發送 WebPush 測試
 *   `time.sync` : 同步 NTP 時間
 *   `time.now` : 顯示目前時間
