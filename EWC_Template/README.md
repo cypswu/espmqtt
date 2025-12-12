@@ -79,37 +79,53 @@
 | **指令** | `ewc/devices/dev01/cmd` | Broker -> 裝置 | 接收控制指令 |
 
 #### 常用 MQTT 指令 (發送至 `.../cmd`)
-| 指令 (Payload) | 說明 | 範例 |
+
+**1. 基礎與系統指令**
+
+| 指令 (Payload) | 說明 | 範例 / 備註 |
 | :--- | :--- | :--- |
 | `ping` | 測試連線 | 回覆 `pong` |
-| `led.on` | 開啟狀態 LED | `led.on` |
-| `led.off` | 關閉狀態 LED | `led.off` |
-| `led.save` | 儲存 LED 設定 | `led.save` (將目前 RGBW 設定寫入 Flash) |
-| `led.show` | 顯示 LED 狀態 | `led.show` (回傳各通道狀態) |
-| `led.help` | 顯示 LED 指令列表 | `led.help` (回傳指令說明) |
-| `led.test [p1] [p2] [p3] [p4]` | 測試 RGBW 呼吸燈 | `led.test` (預設) 或 `led.test 4 5 12 14` |
-| `rgbw.set <r> <g> <b> <w>` | 設定 RGBW 顏色 | `rgbw.set 255 0 0 0` (紅光) |
-| `[ch].val <v>` | 設定亮度 (0-100) | `r.val 100`, `g.val 50` |
-| `[ch].breathe <min> <max> <ms>` | 呼吸燈 | `r.breathe 10 100 2000` (2秒週期) |
-| `[ch].fade <from> <to> <ms>` | 漸變燈 | `g.fade 0 100 1000` (1秒漸亮) |
-| `[ch].blink <val> <on> <off>` | 閃爍 | `b.blink 100 200 200` (快閃) |
-| `push` | 發送 WebPush 測試 | `push` 或 `push 標題|內容` |
-| `pina<n>` | 讀取 Analog GPIO <n> | `pina0` (A0), `pina34` |
-| `pin<n>.on` | 設定 GPIO <n> 為 HIGH | `pin12.on` |
-| `pin<n>.off` | 設定 GPIO <n> 為 LOW | `pin12.off` |
-| `portal` | 強制開啟設定頁面 | `portal` (裝置將斷線並開啟 AP) |
-| `sys.reboot` | 遠端重啟 | `sys.reboot` |
-| `sys.boot ap` | 重啟並進入 AP | `sys.boot ap` (重啟後直接進入 AP 模式) |
 | `sys.ver` | 查詢版本 | `sys.ver` |
-| `wifi.status` | 查詢 Wi-Fi 狀態 | `wifi.status` (回傳 SSID/IP/RSSI) |
+| `sys.reboot` | 遠端重啟 | `sys.reboot` |
+| `sys.boot ap` | 重啟並進入 AP | 重啟後直接進入 AP 模式 |
+| `sys.reset force` | 恢復原廠設定 | 需加 `force` 參數以防誤觸 |
+| `sys.ota <url>` | 自動化 OTA 更新 | `sys.ota http://192.168.1.10/new.bin` |
+| `portal` | 強制開啟設定頁面 | 裝置將斷線並開啟 AP |
+| `wifi.status` | 查詢 Wi-Fi 狀態 | 回傳 SSID/IP/RSSI |
 | `time.now` | 查詢目前時間 | `time.now` |
 | `cfg.show` | 查詢目前設定 | `cfg.show` |
-| `sys.reset force` | 恢復原廠設定 | 需加 force 參數以防誤觸 |
-| `push.cfg <k> <v>` | 設定推播開關 | `push.cfg boot on`, `push.cfg conn off` |
-| `push.group <list>`| 設定推播過濾 | `push.group led,pin 2` (只推播 led 與 pin 2 相關指令) |
-| `sys.ota <url>` | 自動化 OTA 更新 | `sys.ota http://192.168.1.10/new.bin` |
 
-> **備註**: `[ch]` 可為 `r`, `g`, `b`, `w` 或 `led` (狀態燈)。
+**2. LED 控制指令**
+
+| 指令 | 說明 | 範例 / 備註 |
+| :--- | :--- | :--- |
+| `led.on` / `led.off` | 開啟/關閉 狀態 LED | `led.on` |
+| `led.save` | 儲存 LED 設定 | 將目前 RGBW 設定寫入 Flash |
+| `led.show` | 顯示 LED 狀態 | 回傳各通道狀態 |
+| `led.help` | 顯示 LED 指令列表 | 回傳指令說明 |
+| `led.test [p1]..` | 測試 RGBW 呼吸燈 | `led.test` (預設) 或 `led.test 4 5 12 14` |
+
+**3. RGBW 與特效指令**
+> **備註**: `[ch]` 可為 `r`, `g`, `b`, `w` (色光) 或 `led` (狀態燈)
+
+| 指令 | 說明 | 範例 / 備註 |
+| :--- | :--- | :--- |
+| `rgbw.set <r> <g> <b> <w>` | 設定 RGBW 顏色 | `rgbw.set 255 0 0 0` (紅光) |
+| `[ch].val <v>` | 設定亮度 (0-100) | `r.val 100`, `g.val 50` |
+| `[ch].breathe <min> <max> <ms>` | 呼吸燈效 | `r.breathe 10 100 2000` (2秒週期) |
+| `[ch].fade <from> <to> <ms>` | 漸變燈效 | `g.fade 0 100 1000` (1秒漸亮) |
+| `[ch].blink <val> <on> <off>` | 閃爍模式 | `b.blink 100 200 200` (快閃) |
+
+**4. GPIO 與推播指令**
+
+| 指令 | 說明 | 範例 / 備註 |
+| :--- | :--- | :--- |
+| `pin<n>.on` | 設定 GPIO HIGH | `pin12.on` |
+| `pin<n>.off` | 設定 GPIO LOW | `pin12.off` |
+| `pina<n>` | 讀取 Analog GPIO | `pina0` (A0), `pina34` |
+| `push` | 發送 WebPush 測試 | `push` 或 `push 標題|內容` |
+| `push.cfg <k> <v>` | 設定推播參數 | `push.cfg boot on`, `push.cfg conn off` |
+| `push.group <list>` | 設定推播過濾 | `push.group led,pin` (只推播 led 與 pin 相關指令) |
 
 ## 自動化 OTA 更新 (Auto 2-Stage OTA)
 
