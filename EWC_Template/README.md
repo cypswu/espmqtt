@@ -99,6 +99,7 @@
 | `pin<n>.off` | 設定 GPIO <n> 為 LOW | `pin12.off` |
 | `portal` | 強制開啟設定頁面 | `portal` (裝置將斷線並開啟 AP) |
 | `sys.reboot` | 遠端重啟 | `sys.reboot` |
+| `sys.boot ap` | 重啟並進入 AP | `sys.boot ap` (重啟後直接進入 AP 模式) |
 | `sys.ver` | 查詢版本 | `sys.ver` |
 | `wifi.status` | 查詢 Wi-Fi 狀態 | `wifi.status` (回傳 SSID/IP/RSSI) |
 | `time.now` | 查詢目前時間 | `time.now` |
