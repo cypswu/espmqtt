@@ -1,0 +1,22 @@
+{
+  "name": "mqtt-led",
+  "title": "LED 開關",
+  "topicBase": "esp32/mqtt-led/{dev}",
+  "availability": "availability",
+  "controls": [
+    {
+      "id": "led",
+      "type": "toggle",
+      "label": "LED",
+      "cmd": "cmd",
+      "state": "state",
+      "on": "ON",
+      "off": "OFF",
+      "voice": {
+        "on": ["開燈", "打開"],
+        "off": ["關燈", "關掉"],
+        "toggle": ["切換"]
+      }
+    }
+  ]
+}

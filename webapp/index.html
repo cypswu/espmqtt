@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>ESP 控制面板</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: system-ui, -apple-system, "Noto Sans TC", sans-serif;
+    background: #0f172a; color: #e2e8f0; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  header {
+    width: 100%; max-width: 480px; display: flex; align-items: center;
+    gap: 12px; padding: 16px 20px;
+  }
+  header h1 { font-size: 18px; font-weight: 600; flex: 1; }
+  header button { background: none; border: none; color: #94a3b8; font-size: 22px; cursor: pointer; }
+  main { width: 100%; max-width: 480px; padding: 0 20px 40px; flex: 1; }
+  .view { display: none; }
+  .view.show { display: block; }
+
+  .status { display: flex; gap: 16px; justify-content: center; margin-bottom: 20px;
+            font-size: 13px; color: #94a3b8; }
+  .status span::before { content: ""; display: inline-block; width: 8px; height: 8px;
+            border-radius: 50%; margin-right: 6px; background: #64748b; }
+  .status .ok::before  { background: #34d399; }
+  .status .bad::before { background: #f87171; }
+
+  .card {
+    display: flex; align-items: center; gap: 14px;
+    background: #1e293b; border: 1px solid #334155; border-radius: 14px;
+    padding: 18px 20px; margin-bottom: 14px;
+  }
+  .card .grow { flex: 1; min-width: 0; }
+  .card .title { font-size: 16px; }
+  .card .sub { font-size: 12px; color: #64748b; margin-top: 3px; }
+  .card .value { font-size: 16px; color: #94a3b8; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #64748b; flex-shrink: 0; }
+  .dot.ok { background: #34d399; }
+  .dot.bad { background: #f87171; }
+  .devcard { cursor: pointer; }
+  .editbtn { background: none; border: none; color: #64748b; font-size: 17px; cursor: pointer; }
+
+  .bigbtn {
+    width: 100%; padding: 14px; border-radius: 12px; margin-top: 6px;
+    border: 1px dashed #475569; background: none; color: #94a3b8;
+    font-size: 15px; cursor: pointer;
+  }
+  .empty { text-align: center; color: #64748b; font-size: 14px; margin: 40px 0 20px; }
+
+  .switch {
+    position: relative; width: 58px; height: 32px; border-radius: 999px;
+    background: #334155; border: none; cursor: pointer; transition: background .2s;
+    flex-shrink: 0;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px;
+    border-radius: 50%; background: #94a3b8; transition: all .2s;
+  }
+  .switch.on { background: #f59e0b; }
+  .switch.on::after { left: 29px; background: #fff7ed; }
+  .switch:disabled { opacity: .35; cursor: not-allowed; }
+  .pushbtn {
+    padding: 10px 22px; border-radius: 10px; border: 1px solid #475569;
+    background: #334155; color: #e2e8f0; font-size: 15px; cursor: pointer;
+  }
+  .pushbtn:disabled { opacity: .35; cursor: not-allowed; }
+
+  .voice-wrap { display: flex; justify-content: center; margin-top: 26px; }
+  #voiceBtn {
+    display: flex; align-items: center; gap: 10px; padding: 14px 28px;
+    border-radius: 999px; border: 1px solid #334155; background: #1e293b;
+    color: #e2e8f0; font-size: 16px; cursor: pointer;
+  }
+  #voiceBtn.listening { background: #7c3aed; border-color: #8b5cf6; }
+  #voiceHint { text-align: center; font-size: 12px; color: #64748b; margin-top: 10px; }
+
+  #log { margin-top: 26px; font-size: 12px; color: #64748b; line-height: 1.7;
+         max-height: 130px; overflow-y: auto; text-align: center; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #334155;
+    background: #1e293b; color: #e2e8f0; font-size: 16px;
+  }
+  .field textarea { min-height: 90px; font-family: monospace; font-size: 13px; }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none; border-color: #7c3aed;
+  }
+  .hint { font-size: 12px; color: #64748b; margin-top: 4px; }
+  .primary {
+    width: 100%; padding: 14px; border-radius: 10px; border: none; margin-top: 8px;
+    background: #7c3aed; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+  .danger {
+    width: 100%; padding: 12px; border-radius: 10px; margin-top: 12px;
+    border: 1px solid #7f1d1d; background: none; color: #f87171;
+    font-size: 14px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<header>
+  <button id="backBtn" style="display:none" aria-label="返回">&#8592;</button>
+  <h1 id="appTitle">ESP 控制面板</h1>
+  <button id="gearBtn" title="伺服器設定" aria-label="伺服器設定">&#9881;</button>
+</header>
+<main>
+  <!-- 裝置清單 -->
+  <section id="view-list" class="view">
+    <div class="status"><span id="brokerDot">伺服器</span></div>
+    <div id="devList"></div>
+    <button class="bigbtn" id="addDevBtn">＋ 新增裝置</button>
+  </section>
+
+  <!-- 單一裝置控制 -->
+  <section id="view-device" class="view">
+    <div class="status">
+      <span id="brokerDot2">伺服器</span>
+      <span id="deviceDot">裝置</span>
+    </div>
+    <div id="controls"></div>
+    <div class="voice-wrap" id="voiceWrap" style="display:none">
+      <button id="voiceBtn">&#127908; 語音控制</button>
+    </div>
+    <div id="voiceHint" style="display:none"></div>
+    <div id="log"></div>
+  </section>
+
+  <!-- 伺服器設定 -->
+  <section id="view-broker" class="view">
+    <div class="field">
+      <label>WSS 網域</label>
+      <input id="fHost" placeholder="home.cyps.idv.tw" autocapitalize="off" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>WSS 連接埠</label>
+      <input id="fPort" placeholder="7894" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label>帳號</label>
+      <input id="fUser" autocapitalize="off" autocomplete="off">
+      <div class="hint">建議用 ACL 受限的專用帳號，不要用管理帳號</div>
+    </div>
+    <div class="field">
+      <label>密碼</label>
+      <input id="fPass" type="password">
+    </div>
+    <button class="primary" id="saveBrokerBtn">儲存並連線</button>
+  </section>
+
+  <!-- 新增／編輯裝置 -->
+  <section id="view-devedit" class="view">
+    <div class="field">
+      <label>裝置名稱（顯示與語音用）</label>
+      <input id="dName" placeholder="例如：客廳燈">
+    </div>
+    <div class="field">
+      <label>專案配置</label>
+      <select id="dCfg"></select>
+      <div class="hint">來自 configs/，每種子專案一個 JSON；也可在下方匯入自訂配置</div>
+    </div>
+    <div class="field">
+      <label>裝置序號</label>
+      <input id="dSerial" placeholder="1C5004" autocapitalize="characters" autocomplete="off">
+      <div class="hint">板子開機橫幅的「裝置序號」，填後綴即可（例如 1C5004）</div>
+    </div>
+    <div class="field">
+      <label>匯入自訂配置（選填，貼上 JSON）</label>
+      <textarea id="dCustom" placeholder='{"name":"...","title":"...","topicBase":"esp32/.../{dev}","controls":[...]}'></textarea>
+    </div>
+    <button class="primary" id="saveDevBtn">儲存</button>
+    <button class="danger" id="delDevBtn" style="display:none">刪除這個裝置</button>
+  </section>
+</main>
+
+<script src="mqtt.min.js"></script>
+<script>
+"use strict";
+const LS_KEY = "esp-webapp-v2";
+const $ = (id) => document.getElementById(id);
+
+let store = { broker: null, devices: [] };
+// device: {name, cfgFile, serial, customCfg?}
+let catalog = [];        // [{file, data}]
+let client = null;
+let devState = [];       // 依 devices 索引：{online, states: {ctrlId: payload}}
+let topicMap = {};       // topic -> {devIdx, kind:'avail'|'state', ctrlId}
+let curDev = -1;         // 目前開啟的裝置索引
+let editDev = -1;        // 編輯中的裝置索引（-1 = 新增）
+let controlEls = {};
+
+function log(msg) {
+  const el = $("log");
+  const time = new Date().toLocaleTimeString("zh-TW", { hour12: false });
+  el.innerHTML = `${time}　${msg}<br>` + el.innerHTML;
+}
+function saveStore() { localStorage.setItem(LS_KEY, JSON.stringify(store)); }
+function loadStore() {
+  try { const s = JSON.parse(localStorage.getItem(LS_KEY)); if (s) store = s; } catch (e) {}
+}
+function normalizeSerial(v) { return v.trim().replace(/^[A-Za-z0-9_]+-/i, "").toUpperCase(); }
+
+function cfgOf(d) {
+  if (d.cfgFile === "__custom__") return d.customCfg || null;
+  const hit = catalog.find((c) => c.file === d.cfgFile);
+  return hit ? hit.data : null;
+}
+function topicOf(d, sub) {
+  const c = cfgOf(d);
+  return c.topicBase.replace("{dev}", d.serial) + "/" + sub;
+}
+
+/* ---------- 配置清單 ---------- */
+async function loadCatalog() {
+  catalog = [];
+  try {
+    const idx = await (await fetch("configs/index.json", { cache: "no-cache" })).json();
+    for (const file of idx) {
+      try {
+        const data = await (await fetch("configs/" + file, { cache: "no-cache" })).json();
+        catalog.push({ file, data });
+      } catch (e) { console.warn("配置讀取失敗", file); }
+    }
+  } catch (e) { console.warn("找不到 configs/index.json"); }
+}
+
+/* ---------- 視圖切換 ---------- */
+function show(view, title, canBack) {
+  for (const v of document.querySelectorAll(".view")) v.classList.remove("show");
+  $("view-" + view).classList.add("show");
+  $("appTitle").textContent = title;
+  $("backBtn").style.display = canBack ? "" : "none";
+}
+function showList() {
+  curDev = -1;
+  show("list", "ESP 控制面板", false);
+  renderList();
+}
+function showDevice(i) {
+  curDev = i;
+  const d = store.devices[i];
+  show("device", d.name, true);
+  buildControls(d);
+  renderDeviceView();
+}
+function showBroker() {
+  show("broker", "伺服器設定", store.broker !== null);
+  const b = store.broker;
+  $("fHost").value = b ? b.host : "home.cyps.idv.tw";
+  $("fPort").value = b ? b.port : "7894";
+  $("fUser").value = b ? b.user : "";
+  $("fPass").value = b ? b.pass : "";
+}
+function showDevEdit(i) {
+  editDev = i;
+  show("devedit", i < 0 ? "新增裝置" : "編輯裝置", true);
+  const sel = $("dCfg");
+  sel.innerHTML = "";
+  for (const c of catalog) {
+    const o = document.createElement("option");
+    o.value = c.file;
+    o.textContent = (c.data.title || c.data.name) + "（" + c.file + "）";
+    sel.appendChild(o);
+  }
+  const oc = document.createElement("option");
+  oc.value = "__custom__";
+  oc.textContent = "自訂（使用下方匯入的 JSON）";
+  sel.appendChild(oc);
+  if (i >= 0) {
+    const d = store.devices[i];
+    $("dName").value = d.name; sel.value = d.cfgFile;
+    $("dSerial").value = d.serial;
+    $("dCustom").value = d.customCfg ? JSON.stringify(d.customCfg, null, 2) : "";
+    $("delDevBtn").style.display = "";
+  } else {
+    $("dName").value = ""; $("dSerial").value = ""; $("dCustom").value = "";
+    $("delDevBtn").style.display = "none";
+  }
+}
+
+/* ---------- 裝置清單 ---------- */
+function renderList() {
+  const box = $("devList");
+  box.innerHTML = "";
+  if (!store.devices.length) {
+    box.innerHTML = '<div class="empty">還沒有裝置，按下方「新增裝置」開始</div>';
+    return;
+  }
+  store.devices.forEach((d, i) => {
+    const c = cfgOf(d);
+    const card = document.createElement("div");
+    card.className = "card devcard";
+    const dot = document.createElement("div");
+    dot.className = "dot " + (devState[i] && devState[i].online ? "ok" : "bad");
+    const grow = document.createElement("div");
+    grow.className = "grow";
+    grow.innerHTML = `<div class="title">${d.name}</div>
+      <div class="sub">${c ? (c.title || c.name) : "⚠ 配置遺失"}　#${d.serial}</div>`;
+    const edit = document.createElement("button");
+    edit.className = "editbtn";
+    edit.innerHTML = "&#9998;";
+    edit.setAttribute("aria-label", "編輯 " + d.name);
+    edit.addEventListener("click", (ev) => { ev.stopPropagation(); showDevEdit(i); });
+    card.appendChild(dot); card.appendChild(grow); card.appendChild(edit);
+    card.addEventListener("click", () => { if (c) showDevice(i); });
+    box.appendChild(card);
+  });
+}
+
+/* ---------- 控制項 ---------- */
+function buildControls(d) {
+  const c = cfgOf(d);
+  const box = $("controls");
+  box.innerHTML = "";
+  controlEls = {};
+  let hasVoice = false;
+  const hints = [];
+
+  for (const ctl of c.controls) {
+    const card = document.createElement("div");
+    card.className = "card";
+    const label = document.createElement("div");
+    label.className = "grow title";
+    label.textContent = ctl.label;
+    card.appendChild(label);
+
+    if (ctl.type === "toggle") {
+      const sw = document.createElement("button");
+      sw.className = "switch";
+      sw.disabled = true;
+      sw.setAttribute("aria-label", ctl.label);
+      sw.addEventListener("click", () => {
+        const on = sw.classList.contains("on");
+        sendCmd(d, ctl, on ? (ctl.off || "OFF") : (ctl.on || "ON"));
+      });
+      card.appendChild(sw);
+      controlEls[ctl.id] = { el: sw, type: "toggle", control: ctl };
+    } else if (ctl.type === "button") {
+      const btn = document.createElement("button");
+      btn.className = "pushbtn";
+      btn.textContent = ctl.text || "執行";
+      btn.disabled = true;
+      btn.addEventListener("click", () => sendCmd(d, ctl, ctl.payload));
+      card.appendChild(btn);
+      controlEls[ctl.id] = { el: btn, type: "button", control: ctl };
+    } else if (ctl.type === "sensor") {
+      const val = document.createElement("div");
+      val.className = "value";
+      val.textContent = "—";
+      card.appendChild(val);
+      controlEls[ctl.id] = { el: val, type: "sensor", control: ctl };
+    }
+    box.appendChild(card);
+
+    if (ctl.voice) {
+      hasVoice = true;
+      const ph = [].concat(ctl.voice.on || [], ctl.voice.off || [],
+                           ctl.voice.toggle || [], ctl.voice.press || []);
+      if (ph.length) hints.push("「" + ph[0] + "」");
+    }
+  }
+  $("voiceWrap").style.display = hasVoice ? "flex" : "none";
+  $("voiceHint").style.display = hasVoice ? "block" : "none";
+  $("voiceHint").textContent = hasVoice ? "按一下說 " + hints.join("、") : "";
+}
+function renderDeviceView() {
+  if (curDev < 0) return;
+  const st = devState[curDev] || { online: false, states: {} };
+  const el = $("deviceDot");
+  el.className = st.online ? "ok" : "bad";
+  el.textContent = st.online ? "裝置在線" : "裝置離線";
+  const connected = client && client.connected && st.online;
+  for (const id of Object.keys(controlEls)) {
+    const h = controlEls[id];
+    const val = st.states[id];
+    if (h.type === "toggle") {
+      h.el.disabled = !connected;
+      h.el.classList.toggle("on", val === (h.control.on || "ON"));
+    } else if (h.type === "button") {
+      h.el.disabled = !connected;
+    } else if (h.type === "sensor") {
+      h.el.textContent = val === undefined ? "—" : val + (h.control.unit || "");
+    }
+  }
+}
+
+/* ---------- MQTT ---------- */
+function setBrokerDots(ok, text) {
+  for (const id of ["brokerDot", "brokerDot2"]) {
+    const el = $(id);
+    el.className = ok ? "ok" : "bad";
+    el.textContent = text;
+  }
+}
+function rebuildTopicMap() {
+  topicMap = {};
+  devState = store.devices.map((d, i) => devState[i] || { online: false, states: {} });
+  store.devices.forEach((d, i) => {
+    const c = cfgOf(d);
+    if (!c) return;
+    if (c.availability)
+      topicMap[topicOf(d, c.availability)] = { devIdx: i, kind: "avail" };
+    for (const ctl of c.controls)
+      if (ctl.state)
+        topicMap[topicOf(d, ctl.state)] = { devIdx: i, kind: "state", ctrlId: ctl.id };
+  });
+}
+function connect() {
+  if (client) { client.end(true); client = null; }
+  if (!store.broker) return;
+  rebuildTopicMap();
+  setBrokerDots(false, "連線中...");
+
+  const b = store.broker;
+  client = mqtt.connect(`wss://${b.host}:${b.port}`, {
+    username: b.user, password: b.pass,
+    clientId: "webapp-" + Math.random().toString(16).slice(2, 10),
+    reconnectPeriod: 3000, connectTimeout: 8000, clean: true,
+  });
+  client.on("connect", () => {
+    setBrokerDots(true, "伺服器已連線");
+    const subs = Object.keys(topicMap);
+    if (subs.length) client.subscribe(subs);
+  });
+  client.on("message", (topic, payload) => {
+    const hit = topicMap[topic];
+    if (!hit) return;
+    const msg = payload.toString();
+    const st = devState[hit.devIdx];
+    if (hit.kind === "avail") st.online = (msg === "online");
+    else st.states[hit.ctrlId] = msg;
+    if (curDev === hit.devIdx) renderDeviceView();
+    if (curDev < 0) renderList();
+  });
+  client.on("error", (err) => {
+    setBrokerDots(false, "連線失敗");
+    log("錯誤：" + (err && err.message ? err.message : err));
+  });
+  client.on("close", () => {
+    setBrokerDots(false, "已斷線");
+    devState.forEach((s) => { s.online = false; });
+    if (curDev >= 0) renderDeviceView(); else renderList();
+  });
+  client.on("reconnect", () => setBrokerDots(false, "重連中..."));
+}
+function sendCmd(d, ctl, payload) {
+  if (!(client && client.connected)) { log("尚未連線，無法送出"); return; }
+  client.publish(topicOf(d, ctl.cmd), payload);
+  log(ctl.label + " ← " + payload);
+}
+
+/* ---------- 語音 ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function speak(text) {
+  if (!window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "zh-TW";
+  speechSynthesis.speak(u);
+}
+function matchVoice(d, text) {
+  const c = cfgOf(d);
+  // 每個控制項依「關 → 開 → 切換 → 執行」的順序比對，
+  // 避免「打開」被「關」的子字串誤觸發
+  for (const ctl of c.controls) {
+    if (!ctl.voice) continue;
+    const v = ctl.voice;
+    if ((v.off || []).some((p) => text.includes(p)))
+      return { ctl, payload: ctl.off || "OFF", say: ctl.label + "已關" };
+    if ((v.on || []).some((p) => text.includes(p)))
+      return { ctl, payload: ctl.on || "ON", say: ctl.label + "已開" };
+    if ((v.toggle || []).some((p) => text.includes(p)))
+      return { ctl, payload: ctl.toggleCmd || "TOGGLE", say: ctl.label + "已切換" };
+    if ((v.press || []).some((p) => text.includes(p)))
+      return { ctl, payload: ctl.payload, say: ctl.label + "已執行" };
+  }
+  return null;
+}
+function startVoice() {
+  if (!SR) { log("此瀏覽器不支援語音辨識（建議 Android Chrome）"); return; }
+  if (curDev < 0) return;
+  const d = store.devices[curDev];
+  const rec = new SR();
+  rec.lang = "zh-TW";
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  $("voiceBtn").classList.add("listening");
+  $("voiceBtn").innerHTML = "&#127908; 聆聽中...";
+  rec.onresult = (ev) => {
+    const text = ev.results[0][0].transcript;
+    log("聽到：「" + text + "」");
+    const hit = matchVoice(d, text);
+    if (hit) { sendCmd(d, hit.ctl, hit.payload); speak(hit.say); }
+    else speak("聽不懂這個指令");
+  };
+  rec.onerror = (ev) => log("語音辨識錯誤：" + ev.error);
+  rec.onend = () => {
+    $("voiceBtn").classList.remove("listening");
+    $("voiceBtn").innerHTML = "&#127908; 語音控制";
+  };
+  rec.start();
+}
+
+/* ---------- 事件 ---------- */
+$("gearBtn").addEventListener("click", showBroker);
+$("backBtn").addEventListener("click", showList);
+$("addDevBtn").addEventListener("click", () => showDevEdit(-1));
+$("voiceBtn").addEventListener("click", startVoice);
+
+$("saveBrokerBtn").addEventListener("click", () => {
+  const b = {
+    host: $("fHost").value.trim(),
+    port: $("fPort").value.trim() || "7894",
+    user: $("fUser").value.trim(),
+    pass: $("fPass").value,
+  };
+  if (!b.host) { alert("伺服器網域必填"); return; }
+  store.broker = b;
+  saveStore();
+  showList();
+  connect();
+});
+
+$("saveDevBtn").addEventListener("click", () => {
+  let customCfg = null;
+  const raw = $("dCustom").value.trim();
+  if (raw) {
+    try { customCfg = JSON.parse(raw); }
+    catch (e) { alert("自訂配置不是合法的 JSON：" + e.message); return; }
+  }
+  const d = {
+    name: $("dName").value.trim(),
+    cfgFile: $("dCfg").value,
+    serial: normalizeSerial($("dSerial").value),
+    customCfg,
+  };
+  if (!d.name || !d.serial) { alert("名稱與序號必填"); return; }
+  if (d.cfgFile === "__custom__" && !customCfg) { alert("選了自訂配置但沒有匯入 JSON"); return; }
+  if (editDev < 0) store.devices.push(d);
+  else store.devices[editDev] = d;
+  saveStore();
+  showList();
+  connect();   // 重連以更新訂閱清單
+});
+
+$("delDevBtn").addEventListener("click", () => {
+  if (editDev < 0) return;
+  if (!confirm("確定刪除「" + store.devices[editDev].name + "」？")) return;
+  store.devices.splice(editDev, 1);
+  saveStore();
+  showList();
+  connect();
+});
+
+/* ---------- 啟動 ---------- */
+(async () => {
+  loadStore();
+  await loadCatalog();
+  if (!store.broker) showBroker();
+  else { showList(); connect(); }
+})();
+
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>
