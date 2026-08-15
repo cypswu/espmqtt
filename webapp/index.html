@@ -470,21 +470,25 @@ function speak(text) {
 }
 function matchVoice(d, text) {
   const c = cfgOf(d);
-  // 每個控制項依「關 → 開 → 切換 → 執行」的順序比對，
-  // 避免「打開」被「關」的子字串誤觸發
+  // 最長觸發詞優先：中文短詞常是長詞的子字串（「音樂」⊂「切換音樂」、
+  // 「關掉燈」⊃「關燈」），比對順序固定就會誤判，改由最具體的詞勝出
+  let best = null;
   for (const ctl of c.controls) {
     if (!ctl.voice) continue;
-    const v = ctl.voice;
-    if ((v.off || []).some((p) => text.includes(p)))
-      return { ctl, payload: ctl.off || "OFF", say: ctl.label + "已關" };
-    if ((v.on || []).some((p) => text.includes(p)))
-      return { ctl, payload: ctl.on || "ON", say: ctl.label + "已開" };
-    if ((v.toggle || []).some((p) => text.includes(p)))
-      return { ctl, payload: ctl.toggleCmd || "TOGGLE", say: ctl.label + "已切換" };
-    if ((v.press || []).some((p) => text.includes(p)))
-      return { ctl, payload: ctl.payload, say: ctl.label + "已執行" };
+    const kinds = [
+      ["off",    ctl.off || "OFF",           ctl.label + "已關"],
+      ["on",     ctl.on || "ON",             ctl.label + "已開"],
+      ["toggle", ctl.toggleCmd || "TOGGLE",  ctl.label + "已切換"],
+      ["press",  ctl.payload,                ctl.label + "已執行"],
+    ];
+    for (const [kind, payload, say] of kinds) {
+      for (const phrase of (ctl.voice[kind] || [])) {
+        if (text.includes(phrase) && (!best || phrase.length > best.len))
+          best = { ctl, payload, say, len: phrase.length };
+      }
+    }
   }
-  return null;
+  return best;
 }
 function startVoice() {
   if (!SR) { log("此瀏覽器不支援語音辨識（建議 Android Chrome）"); return; }

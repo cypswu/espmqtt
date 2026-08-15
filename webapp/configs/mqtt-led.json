@@ -1,6 +1,6 @@
 {
   "name": "mqtt-led",
-  "title": "LED 開關",
+  "title": "LED + 音樂",
   "topicBase": "esp32/mqtt-led/{dev}",
   "availability": "availability",
   "controls": [
@@ -13,9 +13,23 @@
       "on": "ON",
       "off": "OFF",
       "voice": {
-        "on": ["開燈", "打開"],
-        "off": ["關燈", "關掉"],
-        "toggle": ["切換"]
+        "on": ["開燈", "打開燈", "亮燈", "燈打開", "燈開"],
+        "off": ["關燈", "關掉燈", "熄燈", "燈關"],
+        "toggle": ["切換燈"]
+      }
+    },
+    {
+      "id": "music",
+      "type": "toggle",
+      "label": "音樂",
+      "cmd": "music/cmd",
+      "state": "music/state",
+      "on": "ON",
+      "off": "OFF",
+      "voice": {
+        "on": ["開音樂", "播放音樂", "播放", "來點音樂", "聽音樂", "音樂"],
+        "off": ["關音樂", "關掉音樂", "停止音樂", "停止", "安靜", "不要吵", "閉嘴"],
+        "toggle": ["切換音樂"]
       }
     }
   ]
