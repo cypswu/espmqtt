@@ -118,6 +118,7 @@
     <div class="status"><span id="brokerDot">伺服器</span></div>
     <div id="devList"></div>
     <button class="bigbtn" id="addDevBtn">＋ 新增裝置</button>
+    <div class="verTag" style="text-align:center;font-size:11px;color:#475569;margin-top:28px"></div>
   </section>
 
   <!-- 單一裝置控制 -->
@@ -154,6 +155,7 @@
       <input id="fPass" type="password">
     </div>
     <button class="primary" id="saveBrokerBtn">儲存並連線</button>
+    <div class="verTag" style="text-align:center;font-size:11px;color:#475569;margin-top:28px"></div>
   </section>
 
   <!-- 新增／編輯裝置 -->
@@ -181,6 +183,7 @@
   </section>
 </main>
 
+<script src="version.js"></script>
 <script src="mqtt.min.js"></script>
 <script>
 "use strict";
@@ -560,6 +563,10 @@ $("delDevBtn").addEventListener("click", () => {
 });
 
 /* ---------- 啟動 ---------- */
+document.querySelectorAll(".verTag").forEach((el) => {
+  el.textContent = "ESP 控制面板 v" + APP_VERSION;
+});
+
 (async () => {
   loadStore();
   await loadCatalog();
@@ -567,8 +574,23 @@ $("delDevBtn").addEventListener("click", () => {
   else { showList(); connect(); }
 })();
 
-if ("serviceWorker" in navigator && location.protocol === "https:") {
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+/* ---------- 自動更新 ----------
+   每次開啟都向伺服器查 sw.js／version.js 是否有新版（updateViaCache:"none"
+   繞過 HTTP 快取）。新版安裝完成接手時（controllerchange）自動重新載入一次，
+   確保畫面跑的一定是新版；首次安裝（原本沒有 SW 接手）不重載。*/
+if ("serviceWorker" in navigator &&
+    (location.protocol === "https:" || location.hostname === "localhost")) {
+  // wasControlled 在每次 controllerchange 後才翻 true：
+  // 首次安裝（claim 接管）不重載，之後的版本更新才重載
+  let wasControlled = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (wasControlled && !reloaded) { reloaded = true; location.reload(); }
+    wasControlled = true;
+  });
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+    .then((reg) => reg.update())
+    .catch(() => {});
 }
 </script>
 </body>

@@ -1,9 +1,17 @@
-const CACHE = "esp-webapp-v2";
-const ASSETS = ["./", "./index.html", "./mqtt.min.js", "./manifest.json",
-                "./icon-192.png", "./icon-512.png"];
+importScripts("version.js");
+
+const CACHE = "esp-webapp-" + APP_VERSION;
+const ASSETS = ["./", "./index.html", "./version.js", "./mqtt.min.js",
+                "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
+  // cache:"reload" 繞過 HTTP 快取（GitHub Pages 有 10 分鐘 max-age），
+  // 確保新版快取裝進去的一定是剛部署的檔案
+  e.waitUntil(
+    caches.open(CACHE).then((c) =>
+      Promise.all(ASSETS.map((u) => c.add(new Request(u, { cache: "reload" }))))
+    )
+  );
   self.skipWaiting();
 });
 
@@ -18,7 +26,7 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   const url = new URL(e.request.url);
-  // 配置檔走網路優先，改了 configs/ 不必等快取過期
+  // 配置檔走網路優先，改了 configs/ 不必等 App 改版
   if (url.pathname.includes("/configs/")) {
     e.respondWith(
       fetch(e.request)
