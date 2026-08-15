@@ -38,6 +38,17 @@
     padding: 18px 20px; margin-bottom: 14px;
   }
   .card .grow { flex: 1; min-width: 0; }
+  .card.col { flex-direction: column; align-items: stretch; gap: 12px; }
+  .card .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  input[type=range] { width: 100%; accent-color: #f59e0b; height: 28px; }
+  input[type=range]:disabled { opacity: .35; }
+  .card select, .card textarea {
+    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #334155;
+    background: #0f172a; color: #e2e8f0; font-size: 15px;
+  }
+  .card textarea { min-height: 76px; font-family: monospace; font-size: 12px; }
+  .bar { width: 100%; height: 8px; border-radius: 999px; background: #334155; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: #f59e0b; transition: width .3s; }
   .card .title { font-size: 16px; }
   .card .sub { font-size: 12px; color: #64748b; margin-top: 3px; }
   .card .value { font-size: 16px; color: #94a3b8; }
@@ -318,6 +329,22 @@ function renderList() {
   });
 }
 
+/* ---------- 感測值格式化 ----------
+   jsonKey：整包 JSON 只發一則的情況（{"t":25.3,"h":60}），指定要取哪個欄位
+   precision：小數位數，感測器常送 25.30000001 這種值
+   回傳 null 代表沒有有效數值 */
+function fmtSensor(ctl, raw) {
+  if (raw === undefined || raw === null || raw === "") return null;
+  let v = raw;
+  if (ctl.jsonKey) {
+    try { v = JSON.parse(raw)[ctl.jsonKey]; } catch (e) { return null; }
+    if (v === undefined || v === null) return null;
+  }
+  const n = Number(v);
+  if (!isNaN(n) && ctl.precision !== undefined) v = n.toFixed(ctl.precision);
+  return String(v);
+}
+
 /* ---------- 控制項 ---------- */
 function buildControls(d) {
   const c = cfgOf(d);
@@ -358,21 +385,106 @@ function buildControls(d) {
       const val = document.createElement("div");
       val.className = "value";
       val.textContent = "—";
-      card.appendChild(val);
-      controlEls[ctl.id] = { el: val, type: "sensor", control: ctl };
+      // 給了 min/max 就多畫一條量表（距離、電量這類有範圍的數值看得更直覺）
+      if (ctl.min !== undefined && ctl.max !== undefined) {
+        card.className = "card col";
+        card.innerHTML = "";
+        const row = document.createElement("div");
+        row.className = "row";
+        const lb = document.createElement("div");
+        lb.className = "title";
+        lb.textContent = ctl.label;
+        row.appendChild(lb); row.appendChild(val);
+        const bar = document.createElement("div");
+        bar.className = "bar";
+        const fill = document.createElement("div");
+        bar.appendChild(fill);
+        card.appendChild(row); card.appendChild(bar);
+        controlEls[ctl.id] = { el: val, fillEl: fill, type: "sensor", control: ctl };
+      } else {
+        card.appendChild(val);
+        controlEls[ctl.id] = { el: val, type: "sensor", control: ctl };
+      }
+    } else if (ctl.type === "slider") {
+      card.className = "card col";
+      card.innerHTML = "";
+      const row = document.createElement("div");
+      row.className = "row";
+      const lb = document.createElement("div");
+      lb.className = "title";
+      lb.textContent = ctl.label;
+      const vv = document.createElement("div");
+      vv.className = "value";
+      vv.textContent = "—";
+      row.appendChild(lb); row.appendChild(vv);
+      const sl = document.createElement("input");
+      sl.type = "range";
+      sl.min = ctl.min !== undefined ? ctl.min : 0;
+      sl.max = ctl.max !== undefined ? ctl.max : 100;
+      sl.step = ctl.step || 1;
+      sl.disabled = true;
+      sl.setAttribute("aria-label", ctl.label);
+      // 拖曳中即時更新數字，放開才送出——不然每動一格就發一則 MQTT
+      sl.addEventListener("input", () => { vv.textContent = sl.value + (ctl.unit || ""); });
+      sl.addEventListener("change", () => sendCmd(d, ctl, sl.value));
+      card.appendChild(row); card.appendChild(sl);
+      controlEls[ctl.id] = { el: sl, valEl: vv, type: "slider", control: ctl };
+    } else if (ctl.type === "text") {
+      card.className = "card col";
+      card.innerHTML = "";
+      const lb = document.createElement("div");
+      lb.className = "title";
+      lb.textContent = ctl.label;
+      card.appendChild(lb);
+
+      let sel = null;
+      if (ctl.presets && ctl.presets.length) {
+        sel = document.createElement("select");
+        const o0 = document.createElement("option");
+        o0.value = ""; o0.textContent = "選擇內建範例…";
+        sel.appendChild(o0);
+        for (const p of ctl.presets) {
+          const o = document.createElement("option");
+          o.value = p.value; o.textContent = p.name;
+          sel.appendChild(o);
+        }
+        card.appendChild(sel);
+      }
+      const ta = document.createElement("textarea");
+      ta.placeholder = ctl.placeholder || "";
+      if (sel) sel.addEventListener("change", () => { if (sel.value) ta.value = sel.value; });
+      const btn = document.createElement("button");
+      btn.className = "pushbtn";
+      btn.textContent = ctl.text || "上傳";
+      btn.disabled = true;
+      btn.addEventListener("click", () => {
+        const v = ta.value.trim();
+        if (!v) { alert("內容是空的"); return; }
+        if (ctl.maxLength && v.length > ctl.maxLength) {
+          alert("內容過長：" + v.length + " / " + ctl.maxLength + " 字元");
+          return;
+        }
+        sendCmd(d, ctl, v, ctl.retain !== false);
+        speak(ctl.label + "已上傳");
+      });
+      card.appendChild(ta); card.appendChild(btn);
+      controlEls[ctl.id] = { el: btn, taEl: ta, type: "text", control: ctl };
     }
     box.appendChild(card);
 
     if (ctl.voice) {
       hasVoice = true;
       const ph = [].concat(ctl.voice.on || [], ctl.voice.off || [],
-                           ctl.voice.toggle || [], ctl.voice.press || []);
+                           ctl.voice.toggle || [], ctl.voice.press || [],
+                           ctl.voice.up || []);
       if (ph.length) hints.push("「" + ph[0] + "」");
     }
   }
   $("voiceWrap").style.display = hasVoice ? "flex" : "none";
   $("voiceHint").style.display = hasVoice ? "block" : "none";
-  $("voiceHint").textContent = hasVoice ? "按一下說 " + hints.join("、") : "";
+  $("voiceHint").textContent = hasVoice
+    ? "按一下說 " + hints.join("、") + "，或問「狀態如何」"
+    : "";
 }
 function renderDeviceView() {
   if (curDev < 0) return;
@@ -387,10 +499,27 @@ function renderDeviceView() {
     if (h.type === "toggle") {
       h.el.disabled = !connected;
       h.el.classList.toggle("on", val === (h.control.on || "ON"));
-    } else if (h.type === "button") {
+    } else if (h.type === "button" || h.type === "text") {
       h.el.disabled = !connected;
     } else if (h.type === "sensor") {
-      h.el.textContent = val === undefined ? "—" : val + (h.control.unit || "");
+      const v = fmtSensor(h.control, val);
+      h.el.textContent = v === null ? "—" : v + (h.control.unit || "");
+      if (h.fillEl) {
+        const n = Number(v);
+        const min = h.control.min, max = h.control.max;
+        const pct = (v === null || isNaN(n) || max === min)
+          ? 0 : Math.max(0, Math.min(100, (n - min) * 100 / (max - min)));
+        h.fillEl.style.width = pct + "%";
+      }
+    } else if (h.type === "slider") {
+      h.el.disabled = !connected;
+      // 使用者正在拖曳時不要把滑桿拉回去
+      if (val !== undefined && document.activeElement !== h.el) {
+        h.el.value = val;
+        h.valEl.textContent = val + (h.control.unit || "");
+      } else if (val === undefined) {
+        h.valEl.textContent = "—";
+      }
     }
   }
 }
@@ -403,17 +532,18 @@ function setBrokerDots(ok, text) {
     el.textContent = text;
   }
 }
+// 一個主題可能餵給多個元件（例如 {"t":25.3,"h":60} 同時給溫度與濕度兩張卡），
+// 所以每個主題掛的是一個清單，不是單一元件
 function rebuildTopicMap() {
   topicMap = {};
+  const add = (topic, entry) => { (topicMap[topic] = topicMap[topic] || []).push(entry); };
   devState = store.devices.map((d, i) => devState[i] || { online: false, states: {} });
   store.devices.forEach((d, i) => {
     const c = cfgOf(d);
     if (!c) return;
-    if (c.availability)
-      topicMap[topicOf(d, c.availability)] = { devIdx: i, kind: "avail" };
+    if (c.availability) add(topicOf(d, c.availability), { devIdx: i, kind: "avail" });
     for (const ctl of c.controls)
-      if (ctl.state)
-        topicMap[topicOf(d, ctl.state)] = { devIdx: i, kind: "state", ctrlId: ctl.id };
+      if (ctl.state) add(topicOf(d, ctl.state), { devIdx: i, kind: "state", ctrlId: ctl.id });
   });
 }
 function connect() {
@@ -434,13 +564,17 @@ function connect() {
     if (subs.length) client.subscribe(subs);
   });
   client.on("message", (topic, payload) => {
-    const hit = topicMap[topic];
-    if (!hit) return;
+    const hits = topicMap[topic];
+    if (!hits) return;
     const msg = payload.toString();
-    const st = devState[hit.devIdx];
-    if (hit.kind === "avail") st.online = (msg === "online");
-    else st.states[hit.ctrlId] = msg;
-    if (curDev === hit.devIdx) renderDeviceView();
+    let touched = -1;
+    for (const hit of hits) {
+      const st = devState[hit.devIdx];
+      if (hit.kind === "avail") st.online = (msg === "online");
+      else st.states[hit.ctrlId] = msg;
+      touched = hit.devIdx;
+    }
+    if (curDev === touched) renderDeviceView();
     if (curDev < 0) renderList();
   });
   client.on("error", (err) => {
@@ -454,10 +588,11 @@ function connect() {
   });
   client.on("reconnect", () => setBrokerDots(false, "重連中..."));
 }
-function sendCmd(d, ctl, payload) {
+function sendCmd(d, ctl, payload, retain) {
   if (!(client && client.connected)) { log("尚未連線，無法送出"); return; }
-  client.publish(topicOf(d, ctl.cmd), payload);
-  log(ctl.label + " ← " + payload);
+  client.publish(topicOf(d, ctl.cmd), String(payload), { retain: !!retain });
+  const shown = String(payload);
+  log(ctl.label + " ← " + (shown.length > 40 ? shown.slice(0, 40) + "…" : shown));
 }
 
 /* ---------- 語音 ---------- */
@@ -480,16 +615,69 @@ function matchVoice(d, text) {
       ["on",     ctl.on || "ON",             ctl.label + "已開"],
       ["toggle", ctl.toggleCmd || "TOGGLE",  ctl.label + "已切換"],
       ["press",  ctl.payload,                ctl.label + "已執行"],
+      ["query",  null,                       null],
+      ["up",     null,                       null],   // 滑桿加減，值在送出時才算
+      ["down",   null,                       null],
     ];
     for (const [kind, payload, say] of kinds) {
       for (const phrase of (ctl.voice[kind] || [])) {
         if (text.includes(phrase) && (!best || phrase.length > best.len))
-          best = { ctl, payload, say, len: phrase.length };
+          best = { ctl, kind, payload, say, len: phrase.length };
       }
     }
   }
   return best;
 }
+
+// 沒指名控制項的通用問句（「狀態如何」「現在怎麼樣」）→ 回報全部
+const GLOBAL_QUERY = ["狀態", "如何", "怎麼樣", "回報"];
+function isGlobalQuery(text) { return GLOBAL_QUERY.some((p) => text.includes(p)); }
+
+// 狀態全部來自已訂閱的 retained 主題，查詢不必再向裝置要一次
+function statusSentence(onlyCtl) {
+  if (curDev < 0) return "尚未選擇裝置";
+  if (!(client && client.connected)) return "尚未連線到伺服器";
+  const d  = store.devices[curDev];
+  const st = devState[curDev] || { online: false, states: {} };
+  if (!st.online) return d.name + "目前離線";
+
+  const list = onlyCtl ? [onlyCtl] : cfgOf(d).controls;
+  const parts = [];
+  for (const ctl of list) {
+    if (!ctl.state) continue;                    // 單發按鈕沒有狀態可報
+    const v = st.states[ctl.id];
+    const w = ctl.stateWords || {};              // 可在配置檔自訂措辭（「播放中」比「開著」自然）
+    if (ctl.type === "sensor") {
+      const fv = fmtSensor(ctl, v);
+      parts.push(fv === null ? ctl.label + "還沒有讀數"
+                             : ctl.label + fv + (ctl.unit || ""));
+    }
+    else if (v === undefined)       parts.push(ctl.label + "狀態未知");
+    else if (ctl.type === "slider") parts.push(ctl.label + v + (ctl.unit || ""));
+    else parts.push(ctl.label + (v === (ctl.on || "ON") ? (w.on || "開著") : (w.off || "關著")));
+  }
+  return parts.length ? parts.join("，") : "這個裝置沒有可回報的狀態";
+}
+
+// 語音調整滑桿：以目前值為基準加減一段，夾在 min/max 之間
+function adjustSlider(d, ctl, dir) {
+  const st = devState[curDev] || { states: {} };
+  const min  = ctl.min !== undefined ? ctl.min : 0;
+  const max  = ctl.max !== undefined ? ctl.max : 100;
+  const step = ctl.voiceStep || Math.max(1, Math.round((max - min) / 5));
+  const cur  = st.states[ctl.id] !== undefined ? Number(st.states[ctl.id]) : (min + max) / 2;
+  let next = dir === "up" ? cur + step : cur - step;
+  next = Math.max(min, Math.min(max, Math.round(next)));
+  sendCmd(d, ctl, next);
+  speak(ctl.label + next + (ctl.unit || ""));
+}
+
+function answerStatus(onlyCtl) {
+  const sentence = statusSentence(onlyCtl);
+  log("回答：" + sentence);
+  speak(sentence);
+}
+
 function startVoice() {
   if (!SR) { log("此瀏覽器不支援語音辨識（建議 Android Chrome）"); return; }
   if (curDev < 0) return;
@@ -504,7 +692,10 @@ function startVoice() {
     const text = ev.results[0][0].transcript;
     log("聽到：「" + text + "」");
     const hit = matchVoice(d, text);
-    if (hit) { sendCmd(d, hit.ctl, hit.payload); speak(hit.say); }
+    if (hit && hit.kind === "query")                      answerStatus(hit.ctl);
+    else if (hit && (hit.kind === "up" || hit.kind === "down")) adjustSlider(d, hit.ctl, hit.kind);
+    else if (hit)                   { sendCmd(d, hit.ctl, hit.payload); speak(hit.say); }
+    else if (isGlobalQuery(text))     answerStatus(null);
     else speak("聽不懂這個指令");
   };
   rec.onerror = (ev) => log("語音辨識錯誤：" + ev.error);
