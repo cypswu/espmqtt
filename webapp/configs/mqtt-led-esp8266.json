@@ -1,0 +1,75 @@
+{
+  "name": "mqtt-led-esp8266",
+  "title": "LED + 音樂（ESP8266）",
+  "topicBase": "esp32/mqtt-led-esp8266/{dev}",
+  "availability": "availability",
+  "controls": [
+    {
+      "id": "led",
+      "type": "toggle",
+      "label": "LED",
+      "cmd": "cmd",
+      "state": "state",
+      "on": "ON",
+      "off": "OFF",
+      "stateWords": { "on": "亮著", "off": "關著" },
+      "voice": {
+        "on": ["開燈", "打開燈", "亮燈", "燈打開", "燈開"],
+        "off": ["關燈", "關掉燈", "熄燈", "燈關"],
+        "toggle": ["切換燈"],
+        "query": ["燈開著嗎", "燈亮著嗎", "燈開了嗎", "燈關了嗎", "燈的狀態", "燈狀態"]
+      }
+    },
+    {
+      "id": "bright",
+      "type": "slider",
+      "label": "亮度",
+      "cmd": "bright/cmd",
+      "state": "bright/state",
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "voiceStep": 20,
+      "voice": {
+        "up": ["調亮", "亮一點", "更亮"],
+        "down": ["調暗", "暗一點", "更暗"],
+        "query": ["亮度多少", "亮度是多少", "亮度狀態"]
+      }
+    },
+    {
+      "id": "music",
+      "type": "toggle",
+      "label": "音樂",
+      "cmd": "music/cmd",
+      "state": "music/state",
+      "on": "ON",
+      "off": "OFF",
+      "stateWords": { "on": "播放中", "off": "已停止" },
+      "voice": {
+        "on": ["開音樂", "播放音樂", "播放", "來點音樂", "聽音樂", "音樂"],
+        "off": ["關音樂", "關掉音樂", "停止音樂", "停止", "安靜", "不要吵", "閉嘴"],
+        "toggle": ["切換音樂"],
+        "query": ["音樂開著嗎", "音樂在播嗎", "有在播嗎", "音樂的狀態", "音樂狀態"]
+      }
+    },
+    {
+      "id": "score",
+      "type": "text",
+      "label": "上傳樂譜（RTTTL）",
+      "cmd": "music/score",
+      "retain": true,
+      "maxLength": 512,
+      "text": "上傳到裝置",
+      "placeholder": "名稱:d=4,o=5,b=100:16e6,16e6,32p,8e6,...",
+      "presets": [
+        { "name": "小星星", "value": "Twinkle:d=4,o=5,b=120:c,c,g,g,a,a,2g,f,f,e,e,d,d,2c" },
+        { "name": "歡樂頌", "value": "OdeToJoy:d=4,o=5,b=120:e,e,f,g,g,f,e,d,c,c,d,e,8e.,16d,2d" },
+        { "name": "聖誕鈴聲", "value": "JingleBells:d=8,o=5,b=140:e,e,4e,e,e,4e,e,g,4c,16d,2e" },
+        { "name": "警報聲", "value": "Alarm:d=8,o=6,b=180:c,g,c,g,c,g" },
+        { "name": "短嗶兩聲", "value": "Beep:d=16,o=6,b=200:c,p,c" },
+        { "name": "馬力歐（內建預設）", "value": "Mario:d=4,o=5,b=100:16e6,16e6,32p,8e6,16c6,16e6,8g6,8p,8g,8p,8c6,16p,8g,16p,8e,16p,8a,16b,16a#,8a,16g,16e6,16g6,8a6,16f6,16g6,8p,16e6,16c6,16d6,8b" }
+      ]
+    }
+  ]
+}
