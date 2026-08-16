@@ -59,7 +59,7 @@
       "label": "上傳樂譜（RTTTL）",
       "cmd": "music/score",
       "retain": true,
-      "maxLength": 512,
+      "maxLength": 1024,
       "text": "上傳到裝置",
       "placeholder": "名稱:d=4,o=5,b=100:16e6,16e6,32p,8e6,...",
       "presets": [
